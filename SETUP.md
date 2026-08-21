@@ -131,6 +131,62 @@ Next.js only reads `.env` at startup.
 
 ---
 
+## Production deployment (Clerk + domain)
+
+The app sets Clerk `authorizedParties` from `NEXT_PUBLIC_APP_URL` in middleware. You still need to finish Clerk and hosting setup in dashboards you control.
+
+### A. Clerk production instance
+
+1. [Clerk Dashboard](https://dashboard.clerk.com) → instance dropdown → **Create production instance**
+2. **Domains** → add your domain → copy DNS records into your registrar
+3. Wait for DNS to propagate (can take up to 48 hours)
+4. Click **Deploy certificates** when the dashboard shows all steps complete
+5. Reconfigure anything that did not copy from dev: SSO/OAuth providers, integrations, paths
+
+**CLI shortcut (after `npx clerk@latest link`):**
+
+```bash
+npx clerk@latest deploy
+npx clerk@latest env pull --instance prod
+```
+
+### B. Environment variables (production)
+
+Set these on your host (Vercel, etc.) — not only in local `.env`:
+
+| Variable | Production value |
+|----------|------------------|
+| `NEXT_PUBLIC_APP_URL` | `https://your-domain.com` (no trailing slash) |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_...` |
+| `CLERK_SECRET_KEY` | `sk_live_...` |
+| `DATABASE_URL` | Your Neon production connection string |
+
+Then redeploy the app.
+
+### C. Deploy the Next.js app (Vercel example)
+
+```bash
+npm i -g vercel
+vercel login
+vercel --prod
+```
+
+In the Vercel project settings, add your custom domain and paste the production env vars above.
+
+### D. Database migrations (production)
+
+```bash
+npx prisma migrate deploy
+```
+
+Run this against your production `DATABASE_URL` before or right after the first production deploy.
+
+### E. OAuth (if you use social sign-in)
+
+Development uses Clerk shared OAuth credentials. Production requires your own credentials per provider in the Clerk Dashboard.
+
+---
+
 ## Verify everything works
 
 1. Homepage loads at `http://localhost:3000` (no 500 error).
