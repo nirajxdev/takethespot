@@ -1,12 +1,12 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import type { BoardTerritory } from "@/lib/mock-territories";
-import { calculateClaimPrice, formatPrice } from "@/lib/pricing";
-import { classifySelection } from "@/lib/selection";
-import { BOARD_SIZE } from "@/lib/territories";
-import type { SelectionTerritory } from "@/types/selection";
+import { formatPrice } from "@/lib/cell-pricing";
+import { validateCellSelection } from "@/lib/cell-selection";
+import { BOARD_SIZE } from "@/lib/cells";
+import { computeProductRegions } from "@/lib/board-regions";
+import type { BoardCell } from "@/types/cells";
 
 const CELL_SIZE = 10;
 const BOARD_PADDING = 4;
@@ -19,8 +19,8 @@ export type SelectionBounds = {
 };
 
 type BoardCanvasProps = {
-  territories: BoardTerritory[];
-  onSelectTerritory: (territory: BoardTerritory) => void;
+  cells: BoardCell[];
+  onSelectProduct: (productId: string, cells: BoardCell[]) => void;
   onSelectionComplete: (bounds: SelectionBounds) => void;
   selectionOverlay?: {
     bounds: SelectionBounds;
@@ -34,20 +34,6 @@ type DragState = {
   endCellX: number;
   endCellY: number;
 };
-
-function toSelectionTerritories(
-  territories: BoardTerritory[],
-): SelectionTerritory[] {
-  return territories.map((t) => ({
-    id: t.id,
-    x: t.x,
-    y: t.y,
-    width: t.width,
-    height: t.height,
-    currentPrice: t.currentPrice,
-    status: t.status,
-  }));
-}
 
 function cellFromEvent(
   svg: SVGSVGElement,
@@ -84,26 +70,18 @@ function boundsFromDrag(drag: DragState): SelectionBounds {
   return { x, y, width, height };
 }
 
-function dragPreviewLabel(
-  bounds: SelectionBounds,
-  territories: SelectionTerritory[],
-): string {
+function dragPreviewLabel(bounds: SelectionBounds, cells: BoardCell[]): string {
+  const validation = validateCellSelection(bounds, cells);
   const cellCount = bounds.width * bounds.height;
-  const result = classifySelection({
-    x: bounds.x,
-    y: bounds.y,
-    width: bounds.width,
-    height: bounds.height,
-    territories,
-  });
-  const price =
-    result.price ?? calculateClaimPrice(bounds.width, bounds.height);
-  return `${bounds.width}×${bounds.height} (${cellCount} cells) · ${formatPrice(price)}`;
+  if (!validation.isValid) {
+    return `${bounds.width}×${bounds.height} (${cellCount} cells)`;
+  }
+  return `${bounds.width}×${bounds.height} (${cellCount} cells) · ${formatPrice(validation.breakdown.totalPriceInCents)}`;
 }
 
 export function BoardCanvas({
-  territories,
-  onSelectTerritory,
+  cells,
+  onSelectProduct,
   onSelectionComplete,
   selectionOverlay,
 }: BoardCanvasProps) {
@@ -113,7 +91,7 @@ export function BoardCanvas({
   const [isDragging, setIsDragging] = useState(false);
   const [dragState, setDragState] = useState<DragState | null>(null);
 
-  const selectionTerritories = toSelectionTerritories(territories);
+  const regions = useMemo(() => computeProductRegions(cells), [cells]);
   const boardWidth = BOARD_SIZE * CELL_SIZE;
   const boardHeight = BOARD_SIZE * CELL_SIZE;
 
@@ -193,25 +171,11 @@ export function BoardCanvas({
 
   const activeBounds = dragState ? boundsFromDrag(dragState) : null;
   const overlayBounds = activeBounds ?? selectionOverlay?.bounds ?? null;
-  const activeClassification = activeBounds
-    ? classifySelection({
-        x: activeBounds.x,
-        y: activeBounds.y,
-        width: activeBounds.width,
-        height: activeBounds.height,
-        territories: selectionTerritories,
-      })
-    : selectionOverlay?.bounds
-      ? classifySelection({
-          x: selectionOverlay.bounds.x,
-          y: selectionOverlay.bounds.y,
-          width: selectionOverlay.bounds.width,
-          height: selectionOverlay.bounds.height,
-          territories: selectionTerritories,
-        })
-      : null;
+  const activeValidation = overlayBounds
+    ? validateCellSelection(overlayBounds, cells)
+    : null;
   const overlayValid = activeBounds
-    ? activeClassification?.isValidPurchase ?? false
+    ? activeValidation?.isValid ?? false
     : (selectionOverlay?.isValid ?? true);
 
   const overlayFill = !overlayValid
@@ -288,122 +252,75 @@ export function BoardCanvas({
             );
           })}
 
-          {territories.map((territory) => {
-            const isOwned = territory.status === "OWNED";
-            const isAvailable = territory.status === "AVAILABLE";
-            const x = territory.x * CELL_SIZE;
-            const y = territory.y * CELL_SIZE;
-            const w = territory.width * CELL_SIZE;
-            const h = territory.height * CELL_SIZE;
+          {cells.map((cell) => {
+            if (cell.status !== "OWNED") return null;
+            const x = cell.x * CELL_SIZE;
+            const y = cell.y * CELL_SIZE;
+            return (
+              <rect
+                key={`cell-${cell.x}-${cell.y}`}
+                x={x}
+                y={y}
+                width={CELL_SIZE}
+                height={CELL_SIZE}
+                fill="oklch(0.9 0.01 250)"
+                stroke="oklch(0.75 0 0)"
+                strokeWidth={0.5}
+                className="pointer-events-none"
+              />
+            );
+          })}
+
+          {regions.map((region) => {
+            const { bounds, product, productId } = region;
+            const x = bounds.x * CELL_SIZE;
+            const y = bounds.y * CELL_SIZE;
+            const w = bounds.width * CELL_SIZE;
+            const h = bounds.height * CELL_SIZE;
+            const logoSize = Math.min(w - 8, h - 8, 28);
 
             return (
               <g
-                key={territory.id}
+                key={productId}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onSelectTerritory(territory);
+                  onSelectProduct(productId, region.cells);
                 }}
                 className="cursor-pointer"
               >
-                {isAvailable ? (
-                  <rect
-                    x={x - 2}
-                    y={y - 2}
-                    width={w + 4}
-                    height={h + 4}
-                    fill="oklch(0.90 0.08 145)"
-                    stroke="oklch(0.55 0.18 145)"
-                    strokeWidth={2}
-                    strokeDasharray="5 3"
-                    rx={4}
-                    className="pointer-events-none animate-pulse"
-                  />
-                ) : null}
                 <rect
                   x={x}
                   y={y}
                   width={w}
                   height={h}
-                  fill={
-                    isOwned
-                      ? "oklch(0.9 0.01 250)"
-                      : "oklch(0.93 0.06 145)"
-                  }
-                  stroke={
-                    isOwned ? "oklch(0.4 0 0)" : "oklch(0.5 0.16 145)"
-                  }
-                  strokeWidth={isOwned ? 1.5 : 2}
-                  strokeDasharray={isOwned ? undefined : "6 4"}
+                  fill="transparent"
+                  stroke="oklch(0.4 0 0)"
+                  strokeWidth={1.5}
                   rx={2}
                 />
-                {isOwned && territory.product ? (
-                  <>
-                    {territory.product.logoUrl ? (
-                      <image
-                        href={territory.product.logoUrl}
-                        x={x + 4}
-                        y={y + 4}
-                        width={Math.min(w - 8, 28)}
-                        height={Math.min(h - 8, 28)}
-                        preserveAspectRatio="xMidYMid slice"
-                        clipPath={`inset(0 round 2px)`}
-                      />
-                    ) : null}
-                    {w > 50 && h > 24 ? (
-                      <text
-                        x={x + 4}
-                        y={y + h - 6}
-                        fontSize={10}
-                        fill="oklch(0.3 0 0)"
-                        className="pointer-events-none select-none"
-                      >
-                        {territory.product.name.length > 14
-                          ? `${territory.product.name.slice(0, 13)}…`
-                          : territory.product.name}
-                      </text>
-                    ) : null}
-                  </>
-                ) : isAvailable ? (
-                  <>
-                    <text
-                      x={x + w / 2}
-                      y={y + h / 2 - (h > 30 ? 5 : 0)}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fontSize={h > 30 ? 11 : 9}
-                      fontWeight={600}
-                      fill="oklch(0.4 0.14 145)"
-                      className="pointer-events-none select-none"
-                    >
-                      Open
-                    </text>
-                    {h > 24 ? (
-                      <text
-                        x={x + w / 2}
-                        y={y + h / 2 + 9}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontSize={9}
-                        fill="oklch(0.45 0.1 145)"
-                        className="pointer-events-none select-none"
-                      >
-                        {formatPrice(territory.currentPrice)}
-                      </text>
-                    ) : (
-                      <text
-                        x={x + w / 2}
-                        y={y + h / 2}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontSize={8}
-                        fill="oklch(0.45 0.1 145)"
-                        className="pointer-events-none select-none"
-                      >
-                        {formatPrice(territory.currentPrice)}
-                      </text>
-                    )}
-                  </>
+                {product.logoUrl ? (
+                  <image
+                    href={product.logoUrl}
+                    x={x + 4}
+                    y={y + 4}
+                    width={logoSize}
+                    height={logoSize}
+                    preserveAspectRatio="xMidYMid meet"
+                  />
+                ) : null}
+                {w > 50 && h > 24 ? (
+                  <text
+                    x={x + 4}
+                    y={y + h - 6}
+                    fontSize={10}
+                    fill="oklch(0.3 0 0)"
+                    className="pointer-events-none select-none"
+                  >
+                    {product.name.length > 14
+                      ? `${product.name.slice(0, 13)}…`
+                      : product.name}
+                  </text>
                 ) : null}
               </g>
             );
@@ -438,7 +355,7 @@ export function BoardCanvas({
                 fill={overlayTextFill}
                 className="select-none"
               >
-                {dragPreviewLabel(overlayBounds, selectionTerritories)}
+                {dragPreviewLabel(overlayBounds, cells)}
               </text>
             </g>
           ) : null}

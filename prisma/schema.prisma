@@ -8,16 +8,18 @@ datasource db {
 }
 
 model User {
-  id           String        @id
-  name         String?
-  email        String        @unique
-  image        String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  products     Product[]
-  purchases    Purchase[]
-  activities   Activity[]
-  reservations Reservation[]
+  id                String             @id
+  name              String?
+  email             String             @unique
+  image             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  products          Product[]
+  purchases         Purchase[]
+  activities        Activity[]
+  reservations      Reservation[]
+  cellReservations  CellReservation[]
+  ownedCells        Cell[]             @relation("CellOwner")
 }
 
 model Product {
@@ -35,10 +37,12 @@ model Product {
   territories Territory[]
   purchases   Purchase[]
   activities  Activity[]
+  cells       Cell[]
 
   @@index([userId])
 }
 
+/// Legacy rectangle territories — kept for migration; new ownership uses Cell.
 model Territory {
   id           String          @id @default(cuid())
   productId    String
@@ -59,23 +63,77 @@ model Territory {
   @@index([status])
 }
 
+/// Individual board cell ownership (sparse — only non-available cells stored).
+model Cell {
+  x                   Int
+  y                   Int
+  productId           String?
+  ownerId             String?
+  currentValueInCents Int         @default(10)
+  status              CellStatus  @default(AVAILABLE)
+  updatedAt           DateTime    @updatedAt
+  product             Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
+  owner               User?       @relation("CellOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@id([x, y])
+  @@index([productId])
+  @@index([ownerId])
+  @@index([status])
+}
+
 model Purchase {
-  id          String        @id @default(cuid())
+  id          String         @id @default(cuid())
   userId      String
   productId   String
-  territoryId String
+  territoryId String?
   amount      Int
   type        PurchaseType
   status      PurchaseStatus @default(PENDING)
   paymentId   String?
-  createdAt   DateTime      @default(now())
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product     Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
-  territory   Territory     @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  currency    String         @default("USD")
+  createdAt   DateTime       @default(now())
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product     Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  territory   Territory?     @relation(fields: [territoryId], references: [id], onDelete: SetNull)
+  cells       PurchaseCell[]
 
   @@index([userId])
   @@index([productId])
   @@index([territoryId])
+}
+
+model PurchaseCell {
+  id                    String   @id @default(cuid())
+  purchaseId            String
+  cellX                 Int
+  cellY                 Int
+  previousOwnerId       String?
+  previousProductId     String?
+  previousValueInCents  Int?
+  purchasePriceInCents  Int
+  newValueInCents       Int
+  createdAt             DateTime @default(now())
+  purchase              Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseId])
+  @@index([cellX, cellY])
+}
+
+/// Groups reserved cells during checkout (10-minute expiry).
+model CellReservation {
+  id            String   @id @default(cuid())
+  reservationId String
+  userId        String
+  cellX         Int
+  cellY         Int
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([reservationId])
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([cellX, cellY])
 }
 
 model Activity {
@@ -95,6 +153,7 @@ model Activity {
   @@index([createdAt])
 }
 
+/// Legacy rectangle reservation — superseded by CellReservation.
 model Reservation {
   id        String   @id @default(cuid())
   userId    String
@@ -110,6 +169,12 @@ model Reservation {
   @@index([expiresAt])
 }
 
+enum CellStatus {
+  AVAILABLE
+  OWNED
+  RESERVED
+}
+
 enum TerritoryStatus {
   AVAILABLE
   OWNED
@@ -118,6 +183,7 @@ enum TerritoryStatus {
 
 enum PurchaseType {
   INITIAL_PURCHASE
+  MIXED_PURCHASE
   TAKEOVER
 }
 
@@ -131,6 +197,8 @@ enum ActivityType {
   PRODUCT_CREATED
   TERRITORY_CLAIMED
   TERRITORY_TAKEN_OVER
+  CELLS_PURCHASED
+  CELLS_TAKEN_OVER
   RESERVATION_CREATED
   RESERVATION_EXPIRED
 }

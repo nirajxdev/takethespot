@@ -1,21 +1,19 @@
-/** Price per board cell in US cents ($0.01 per cell). */
-export const PRICE_PER_CELL_CENTS = 1;
+/**
+ * @deprecated Use cell-pricing.ts constants. Re-exported for gradual migration.
+ */
+export {
+  BASE_CELL_PRICE_IN_CENTS as PRICE_PER_CELL_CENTS,
+  MINIMUM_PURCHASE_PRICE_IN_CENTS as MIN_CLAIM_PRICE_CENTS,
+  TAKEOVER_MULTIPLIER,
+  formatPrice,
+  getTakeoverPriceForCell as getTakeoverPrice,
+  calculateSelectionPrice,
+} from "@/lib/cell-pricing";
 
-/** Minimum claim price in US cents ($1.00). */
-export const MIN_CLAIM_PRICE_CENTS = 100;
+import { BASE_CELL_PRICE_IN_CENTS, MINIMUM_PURCHASE_PRICE_IN_CENTS } from "@/lib/cell-pricing";
 
-export const TAKEOVER_MULTIPLIER = 1.5;
-
+/** @deprecated Use calculateSelectionPrice with cell data */
 export function calculateClaimPrice(width: number, height: number): number {
-  const area = width * height;
-  const calculated = area * PRICE_PER_CELL_CENTS;
-  return Math.max(calculated, MIN_CLAIM_PRICE_CENTS);
-}
-
-export function getTakeoverPrice(currentPriceCents: number): number {
-  return Math.ceil(currentPriceCents * TAKEOVER_MULTIPLIER);
-}
-
-export function formatPrice(amountInCents: number): string {
-  return `$${(amountInCents / 100).toFixed(2)}`;
+  const calculated = width * height * BASE_CELL_PRICE_IN_CENTS;
+  return Math.max(calculated, MINIMUM_PURCHASE_PRICE_IN_CENTS);
 }

@@ -5,13 +5,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { createCheckoutOrder, finalizeCheckoutPurchase, checkTerritoryAvailability } from "@/actions/checkout";
+import {
+  createCellCheckoutOrder,
+  finalizeCellCheckoutPurchase,
+  checkCellSelectionAvailability,
+} from "@/actions/cell-checkout";
 import {
   clearCheckoutState,
   getCheckoutState,
+  saveCheckoutState,
   type CheckoutState,
 } from "@/lib/checkout";
-import { formatPrice } from "@/lib/pricing";
+import { formatPrice } from "@/lib/cell-pricing";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -23,6 +28,7 @@ export function CheckoutPayment() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [priceChanged, setPriceChanged] = useState(false);
 
   useEffect(() => {
     const state = getCheckoutState();
@@ -31,36 +37,54 @@ export function CheckoutPayment() {
       return;
     }
 
-    checkTerritoryAvailability({
+    checkCellSelectionAvailability({
       x: state.x,
       y: state.y,
       width: state.width,
       height: state.height,
-      territoryId: state.territoryId,
-      purchaseType: state.purchaseType,
       expectedPrice: state.price,
+      reservationId: state.reservationId,
     }).then((result) => {
       if (!result.success) return;
 
       if (!result.data.available) {
         setError(
           result.data.reason ??
-            "This spot is no longer available. Your form data is saved — pick another spot on the board.",
+            "This selection is no longer available. Pick another area on the board.",
         );
         return;
       }
 
       if (
         result.data.updatedPrice !== undefined &&
-        result.data.updatedPrice !== state.price
+        result.data.updatedPrice !== state.price &&
+        result.data.breakdown
       ) {
+        setPriceChanged(true);
+        const updated: CheckoutState = {
+          ...state,
+          price: result.data.updatedPrice,
+          breakdown: {
+            ...state.breakdown,
+            totalPriceInCents: result.data.updatedPrice,
+            availableCells: result.data.breakdown.availableCells,
+            occupiedCells: result.data.breakdown.occupiedCells,
+            productsAffected: result.data.breakdown.productsAffected,
+            availableCellsPriceInCents:
+              result.data.breakdown.availableCellsPriceInCents,
+            takeoverPriceInCents: result.data.breakdown.takeoverPriceInCents,
+          },
+        };
+        saveCheckoutState(updated);
+        setCheckout(updated);
         setError(
-          `Price updated to ${formatPrice(result.data.updatedPrice)}. Return to the board to confirm before paying.`,
+          "Some spots in your selection changed while you were checking out. Review the updated price before paying.",
         );
+        return;
       }
-    });
 
-    setCheckout(state);
+      setCheckout(state);
+    });
   }, [router]);
 
   if (!isLoaded || !checkout) {
@@ -77,15 +101,15 @@ export function CheckoutPayment() {
     setSuccess(null);
     setIsProcessing(true);
 
-    const orderResult = await createCheckoutOrder({
+    const orderResult = await createCellCheckoutOrder({
       sessionId: checkout.sessionId,
       x: checkout.x,
       y: checkout.y,
       width: checkout.width,
       height: checkout.height,
-      territoryId: checkout.territoryId,
-      purchaseType: checkout.purchaseType,
       amount: checkout.price,
+      expectedPrice: checkout.price,
+      reservationId: checkout.reservationId,
       productName: checkout.productData.name,
       productDescription: checkout.productData.description,
       productWebsiteUrl: checkout.productData.websiteUrl,
@@ -98,15 +122,22 @@ export function CheckoutPayment() {
       return;
     }
 
-    const finalizeResult = await finalizeCheckoutPurchase({
+    const updatedCheckout = {
+      ...checkout,
+      price: orderResult.data.amount,
+      reservationId: orderResult.data.reservationId,
+    };
+    saveCheckoutState(updatedCheckout);
+    setCheckout(updatedCheckout);
+
+    const finalizeResult = await finalizeCellCheckoutPurchase({
       sessionId: checkout.sessionId,
       x: checkout.x,
       y: checkout.y,
       width: checkout.width,
       height: checkout.height,
-      territoryId: checkout.territoryId,
-      purchaseType: checkout.purchaseType,
       amount: orderResult.data.amount,
+      reservationId: orderResult.data.reservationId,
       productName: checkout.productData.name,
       productDescription: checkout.productData.description,
       productWebsiteUrl: checkout.productData.websiteUrl,
@@ -122,7 +153,7 @@ export function CheckoutPayment() {
 
     clearCheckoutState();
     setSuccess(
-      `Order ${orderResult.data.orderId} created for ${formatPrice(orderResult.data.amount)}. Payment integration ships in Phase 5 — your spot will activate after payment.`,
+      `Purchase complete — ${finalizeResult.data.cellsTransferred} cells transferred for ${formatPrice(finalizeResult.data.amount)}.`,
     );
   }
 
@@ -136,19 +167,22 @@ export function CheckoutPayment() {
         </p>
         <h1 className="mt-2 text-2xl font-bold tracking-tight">Payment</h1>
         <p className="mt-2 text-muted-foreground">
-          {checkout.width}×{checkout.height} territory — {formatPrice(checkout.price)}
+          {checkout.width}×{checkout.height} selection —{" "}
+          {formatPrice(checkout.price)}
         </p>
       </div>
 
       <div className="space-y-6 rounded-lg border p-6">
         {error ? (
-          <Alert variant="destructive">
+          <Alert variant={priceChanged ? "default" : "destructive"}>
             <AlertDescription>{error}</AlertDescription>
-            <div className="mt-3">
-              <Link href="/" className={cn(buttonVariants({ size: "sm" }))}>
-                Pick another spot
-              </Link>
-            </div>
+            {!priceChanged ? (
+              <div className="mt-3">
+                <Link href="/" className={cn(buttonVariants({ size: "sm" }))}>
+                  Pick another area
+                </Link>
+              </div>
+            ) : null}
           </Alert>
         ) : null}
 
@@ -182,16 +216,35 @@ export function CheckoutPayment() {
                   {checkout.productData.description}
                 </p>
               ) : null}
-              <p className="mt-3 font-semibold">
-                Total: {formatPrice(checkout.price)}
-              </p>
+              <div className="mt-3 space-y-1">
+                {checkout.breakdown.availableCells > 0 ? (
+                  <div className="flex justify-between">
+                    <span>Available cells</span>
+                    <span>
+                      {formatPrice(checkout.breakdown.availableCellsPriceInCents)}
+                    </span>
+                  </div>
+                ) : null}
+                {checkout.breakdown.occupiedCells > 0 ? (
+                  <div className="flex justify-between">
+                    <span>Takeover cost</span>
+                    <span>
+                      {formatPrice(checkout.breakdown.takeoverPriceInCents)}
+                    </span>
+                  </div>
+                ) : null}
+                <div className="flex justify-between border-t pt-2 font-semibold">
+                  <span>Total</span>
+                  <span>{formatPrice(checkout.price)}</span>
+                </div>
+              </div>
             </div>
 
             {!isSignedIn ? (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Sign in to complete your purchase. Your territory selection and
-                  product details are saved for this session.
+                  Sign in to complete your purchase. Your selection and product
+                  details are saved for this session.
                 </p>
                 <div className="flex gap-3">
                   <Link href={signInUrl} className={cn(buttonVariants())}>
@@ -208,12 +261,14 @@ export function CheckoutPayment() {
             ) : (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Razorpay integration ships in Phase 5. Confirm to create a stub
-                  order and verify territory availability.
+                  Payment integration ships in a later phase. Confirm to verify
+                  selection and transfer cell ownership.
                 </p>
                 <div className="flex gap-3">
                   <Button onClick={handlePayment} disabled={isProcessing}>
-                    {isProcessing ? "Processing…" : `Pay ${formatPrice(checkout.price)}`}
+                    {isProcessing
+                      ? "Processing…"
+                      : `Pay ${formatPrice(checkout.price)}`}
                   </Button>
                   <Link
                     href="/checkout"

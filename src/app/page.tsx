@@ -1,8 +1,8 @@
 import { BoardView } from "@/components/board/board-view";
-import { getBoardTerritories } from "@/lib/board-data";
+import { getBoardCells } from "@/lib/board-data";
 
 export default async function HomePage() {
-  const territories = await getBoardTerritories();
+  const cells = await getBoardCells();
 
-  return <BoardView territories={territories} />;
+  return <BoardView cells={cells} />;
 }

@@ -67,7 +67,7 @@ export function CheckoutProductForm() {
   }
 
   const actionLabel =
-    checkout.purchaseType === "takeover" ? "Takeover" : "Claim";
+    checkout.breakdown.occupiedCells > 0 ? "Purchase" : "Claim";
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
@@ -79,8 +79,8 @@ export function CheckoutProductForm() {
           Your product details
         </h1>
         <p className="mt-2 text-muted-foreground">
-          {actionLabel}ing a {checkout.width}×{checkout.height} territory at (
-          {checkout.x}, {checkout.y}) — {formatPrice(checkout.price)}
+          {checkout.width}×{checkout.height} selection ({checkout.breakdown.totalCells}{" "}
+          cells) — {formatPrice(checkout.price)}
         </p>
       </div>
 
@@ -142,7 +142,7 @@ export function CheckoutProductForm() {
           </p>
         </div>
 
-        {checkout.productData?.logoUrl || checkout.occupiedProduct?.logoUrl ? (
+        {checkout.productData?.logoUrl ? (
           <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
             Logo preview will appear on your territory after payment.
           </div>
