@@ -3,25 +3,91 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
 import type { BoardTerritory } from "@/lib/mock-territories";
+import { inferSizeKey } from "@/lib/selection";
+import { TERRITORY_SIZES } from "@/lib/pricing";
+import { BOARD_SIZE } from "@/lib/territories";
 
-const BOARD_SIZE = 100;
 const CELL_SIZE = 10;
 const BOARD_PADDING = 32;
+
+export type SelectionBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 type BoardCanvasProps = {
   territories: BoardTerritory[];
   onSelectTerritory: (territory: BoardTerritory) => void;
-  onEmptyCellClick: (cellX: number, cellY: number) => void;
+  onSelectionComplete: (bounds: SelectionBounds) => void;
+  selectionOverlay?: {
+    bounds: SelectionBounds;
+    isValid: boolean;
+  } | null;
 };
+
+type DragState = {
+  startCellX: number;
+  startCellY: number;
+  endCellX: number;
+  endCellY: number;
+};
+
+function cellFromEvent(
+  svg: SVGSVGElement,
+  clientX: number,
+  clientY: number,
+): { cellX: number; cellY: number } | null {
+  const point = svg.createSVGPoint();
+  point.x = clientX;
+  point.y = clientY;
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+
+  const svgPoint = point.matrixTransform(ctm.inverse());
+  const cellX = Math.floor(svgPoint.x / CELL_SIZE);
+  const cellY = Math.floor(svgPoint.y / CELL_SIZE);
+
+  if (
+    cellX < 0 ||
+    cellY < 0 ||
+    cellX >= BOARD_SIZE ||
+    cellY >= BOARD_SIZE
+  ) {
+    return null;
+  }
+
+  return { cellX, cellY };
+}
+
+function boundsFromDrag(drag: DragState): SelectionBounds {
+  const x = Math.min(drag.startCellX, drag.endCellX);
+  const y = Math.min(drag.startCellY, drag.endCellY);
+  const width = Math.abs(drag.endCellX - drag.startCellX) + 1;
+  const height = Math.abs(drag.endCellY - drag.startCellY) + 1;
+  return { x, y, width, height };
+}
+
+function dragPreviewLabel(bounds: SelectionBounds): string | undefined {
+  const sizeKey = inferSizeKey(bounds.width, bounds.height);
+  if (!sizeKey) {
+    return `${bounds.width}×${bounds.height}`;
+  }
+  return `${bounds.width}×${bounds.height} · ₹${TERRITORY_SIZES[sizeKey].price}`;
+}
 
 export function BoardCanvas({
   territories,
   onSelectTerritory,
-  onEmptyCellClick,
+  onSelectionComplete,
+  selectionOverlay,
 }: BoardCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragState, setDragState] = useState<DragState | null>(null);
 
   const boardWidth = BOARD_SIZE * CELL_SIZE;
   const boardHeight = BOARD_SIZE * CELL_SIZE;
@@ -49,31 +115,68 @@ export function BoardCanvas({
     return () => observer.disconnect();
   }, [boardWidth, boardHeight]);
 
-  function handleBackgroundClick(event: React.MouseEvent<SVGSVGElement>) {
+  function handlePointerDown(event: React.PointerEvent<SVGSVGElement>) {
+    if (event.button !== 0) return;
     const svg = svgRef.current;
     if (!svg) return;
 
-    const point = svg.createSVGPoint();
-    point.x = event.clientX;
-    point.y = event.clientY;
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return;
+    const cell = cellFromEvent(svg, event.clientX, event.clientY);
+    if (!cell) return;
 
-    const svgPoint = point.matrixTransform(ctm.inverse());
-    const cellX = Math.floor(svgPoint.x / CELL_SIZE);
-    const cellY = Math.floor(svgPoint.y / CELL_SIZE);
+    svg.setPointerCapture(event.pointerId);
+    setIsDragging(true);
+    setDragState({
+      startCellX: cell.cellX,
+      startCellY: cell.cellY,
+      endCellX: cell.cellX,
+      endCellY: cell.cellY,
+    });
+  }
 
-    if (
-      cellX < 0 ||
-      cellY < 0 ||
-      cellX >= BOARD_SIZE ||
-      cellY >= BOARD_SIZE
-    ) {
+  function handlePointerMove(event: React.PointerEvent<SVGSVGElement>) {
+    if (!isDragging || !dragState) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const cell = cellFromEvent(svg, event.clientX, event.clientY);
+    if (!cell) return;
+
+    setDragState((prev) =>
+      prev
+        ? {
+            ...prev,
+            endCellX: cell.cellX,
+            endCellY: cell.cellY,
+          }
+        : null,
+    );
+  }
+
+  function handlePointerUp(event: React.PointerEvent<SVGSVGElement>) {
+    if (!isDragging || !dragState) return;
+
+    const svg = svgRef.current;
+    if (svg?.hasPointerCapture(event.pointerId)) {
+      svg.releasePointerCapture(event.pointerId);
+    }
+
+    const bounds = boundsFromDrag(dragState);
+    setIsDragging(false);
+    setDragState(null);
+
+    if (bounds.width === 1 && bounds.height === 1) {
+      onSelectionComplete({ x: bounds.x, y: bounds.y, width: 2, height: 2 });
       return;
     }
 
-    onEmptyCellClick(cellX, cellY);
+    onSelectionComplete(bounds);
   }
+
+  const activeBounds = dragState ? boundsFromDrag(dragState) : null;
+  const overlayBounds = activeBounds ?? selectionOverlay?.bounds ?? null;
+  const overlayValid = activeBounds
+    ? inferSizeKey(activeBounds.width, activeBounds.height) !== undefined
+    : selectionOverlay?.isValid ?? true;
 
   return (
     <div
@@ -86,10 +189,11 @@ export function BoardCanvas({
           viewBox={`0 0 ${boardWidth} ${boardHeight}`}
           width={displaySize.width}
           height={displaySize.height}
-          className="shrink-0 cursor-crosshair rounded-lg border-2 border-neutral-300 bg-white shadow-lg"
-          onClick={handleBackgroundClick}
+          className="shrink-0 cursor-crosshair rounded-lg border-2 border-neutral-300 bg-white shadow-lg touch-none"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
         >
-          {/* Subtle cell grid — hints that every cell is clickable */}
           {Array.from({ length: BOARD_SIZE + 1 }).map((_, i) => {
             const pos = i * CELL_SIZE;
             return (
@@ -114,7 +218,6 @@ export function BoardCanvas({
             );
           })}
 
-          {/* Major grid lines every 10 cells */}
           {Array.from({ length: Math.floor(BOARD_SIZE / 10) + 1 }).map((_, i) => {
             const pos = i * 10 * CELL_SIZE;
             return (
@@ -150,6 +253,7 @@ export function BoardCanvas({
             return (
               <g
                 key={territory.id}
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
                   onSelectTerritory(territory);
@@ -258,6 +362,48 @@ export function BoardCanvas({
               </g>
             );
           })}
+
+          {overlayBounds ? (
+            <g className="pointer-events-none">
+              <rect
+                x={overlayBounds.x * CELL_SIZE}
+                y={overlayBounds.y * CELL_SIZE}
+                width={overlayBounds.width * CELL_SIZE}
+                height={overlayBounds.height * CELL_SIZE}
+                fill={
+                  overlayValid
+                    ? "oklch(0.85 0.12 145 / 0.35)"
+                    : "oklch(0.75 0.15 25 / 0.35)"
+                }
+                stroke={
+                  overlayValid
+                    ? "oklch(0.5 0.18 145)"
+                    : "oklch(0.55 0.2 25)"
+                }
+                strokeWidth={2}
+                strokeDasharray={overlayValid ? undefined : "6 4"}
+                rx={2}
+              />
+              <text
+                x={
+                  overlayBounds.x * CELL_SIZE +
+                  (overlayBounds.width * CELL_SIZE) / 2
+                }
+                y={
+                  overlayBounds.y * CELL_SIZE +
+                  (overlayBounds.height * CELL_SIZE) / 2
+                }
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={11}
+                fontWeight={600}
+                fill={overlayValid ? "oklch(0.35 0.14 145)" : "oklch(0.45 0.18 25)"}
+                className="select-none"
+              >
+                {dragPreviewLabel(overlayBounds)}
+              </text>
+            </g>
+          ) : null}
         </svg>
       ) : null}
     </div>

@@ -28,15 +28,15 @@ export function territoriesOverlap(
   a: TerritoryBounds,
   b: TerritoryBounds,
 ): boolean {
-  return !(
-    a.x + a.width <= b.x ||
-    b.x + b.width <= a.x ||
-    a.y + a.height <= b.y ||
-    b.y + b.height <= a.y
+  return (
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
   );
 }
 
-const BOARD_SIZE = 100;
+export const BOARD_SIZE = 100;
 
 export function canPlaceTerritory(
   x: number,

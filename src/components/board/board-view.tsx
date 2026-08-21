@@ -1,137 +1,210 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
-import { BoardCanvas } from "@/components/board/board-canvas";
+import { BoardCanvas, type SelectionBounds } from "@/components/board/board-canvas";
 import { BoardHint } from "@/components/board/board-hint";
-import { SpotPanel } from "@/components/board/spot-panel";
+import {
+  InvalidSelectionPanel,
+  SpotPanel,
+} from "@/components/board/spot-panel";
 import { UrgencyPanel } from "@/components/board/urgency-panel";
 import {
   createTerritoryFromSize,
-  canPlaceTerritory,
   snapClaimPosition,
 } from "@/lib/territories";
 import type { BoardTerritory } from "@/lib/mock-territories";
+import { classifySelection } from "@/lib/selection";
+import type { ClassifySelectionResult } from "@/types/selection";
 import type { TerritorySizeKey } from "@/lib/pricing";
 
 type BoardViewProps = {
   territories: BoardTerritory[];
 };
 
-const DEFAULT_CLAIM_SIZE: TerritorySizeKey = "small";
-
-function createCustomClaim(
-  cellX: number,
-  cellY: number,
-  sizeKey: TerritorySizeKey,
-  territories: BoardTerritory[],
-): BoardTerritory | null {
-  const { width, height, currentPrice } = createTerritoryFromSize(sizeKey, {
-    x: cellX,
-    y: cellY,
-  });
-  const { x, y } = snapClaimPosition(cellX, cellY, width, height);
-
-  const occupied = territories.map((t) => ({
+function toSelectionTerritories(territories: BoardTerritory[]) {
+  return territories.map((t) => ({
+    id: t.id,
     x: t.x,
     y: t.y,
     width: t.width,
     height: t.height,
+    currentPrice: t.currentPrice,
+    status: t.status,
   }));
+}
 
-  if (!canPlaceTerritory(x, y, width, height, occupied)) {
-    return null;
+function territoryFromClassification(
+  classification: ClassifySelectionResult,
+  bounds: SelectionBounds,
+  territories: BoardTerritory[],
+): BoardTerritory | null {
+  if (!classification.isValidPurchase) return null;
+
+  const matching = classification.matchingTerritory;
+  if (matching) {
+    const existing = territories.find((t) => t.id === matching.id);
+    if (existing) return existing;
   }
 
+  const sizeKey = inferSizeKeyFromBounds(bounds);
   return {
-    id: `claim-${x}-${y}-${sizeKey}`,
-    x,
-    y,
-    width,
-    height,
-    currentPrice,
+    id: `claim-${bounds.x}-${bounds.y}-${bounds.width}x${bounds.height}`,
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    currentPrice: classification.price ?? 0,
     status: "AVAILABLE",
     sizeKey,
   };
 }
 
-function findTerritoryAtCell(
-  cellX: number,
-  cellY: number,
-  territories: BoardTerritory[],
-): BoardTerritory | undefined {
-  return territories.find(
-    (t) =>
-      cellX >= t.x &&
-      cellX < t.x + t.width &&
-      cellY >= t.y &&
-      cellY < t.y + t.height,
-  );
+function inferSizeKeyFromBounds(bounds: SelectionBounds): TerritorySizeKey | undefined {
+  if (bounds.width === 2 && bounds.height === 2) return "small";
+  if (bounds.width === 5 && bounds.height === 5) return "medium";
+  if (bounds.width === 10 && bounds.height === 10) return "large";
+  return undefined;
 }
 
 export function BoardView({ territories }: BoardViewProps) {
   const [selectedTerritory, setSelectedTerritory] = useState<BoardTerritory | null>(
     null,
   );
-  const [claimError, setClaimError] = useState<string | null>(null);
+  const [classification, setClassification] =
+    useState<ClassifySelectionResult | null>(null);
+  const [selectionBounds, setSelectionBounds] = useState<SelectionBounds | null>(
+    null,
+  );
 
-  function handleEmptyCellClick(cellX: number, cellY: number) {
-    setClaimError(null);
+  const selectionTerritories = useMemo(
+    () => toSelectionTerritories(territories),
+    [territories],
+  );
 
-    const existing = findTerritoryAtCell(cellX, cellY, territories);
-    if (existing) {
-      setSelectedTerritory(existing);
+  function classifyBounds(bounds: SelectionBounds): ClassifySelectionResult {
+    const snapped =
+      bounds.width === 2 && bounds.height === 2
+        ? {
+            ...bounds,
+            ...snapClaimPosition(bounds.x, bounds.y, bounds.width, bounds.height),
+          }
+        : bounds;
+
+    return classifySelection({
+      x: snapped.x,
+      y: snapped.y,
+      width: snapped.width,
+      height: snapped.height,
+      territories: selectionTerritories,
+    });
+  }
+
+  function applyClassification(
+    bounds: SelectionBounds,
+    result: ClassifySelectionResult,
+  ) {
+    setSelectionBounds(bounds);
+    setClassification(result);
+
+    if (result.isValidPurchase) {
+      const territory = territoryFromClassification(result, bounds, territories);
+      setSelectedTerritory(territory);
       return;
     }
 
-    const claim = createCustomClaim(
-      cellX,
-      cellY,
-      DEFAULT_CLAIM_SIZE,
-      territories,
-    );
+    setSelectedTerritory(null);
+  }
 
-    if (!claim) {
-      setClaimError(
-        "No space for a 2×2 territory here. Try another open area or pick a green highlighted spot.",
-      );
-      setSelectedTerritory(null);
-      return;
-    }
-
-    setSelectedTerritory(claim);
+  function handleSelectionComplete(bounds: SelectionBounds) {
+    const result = classifyBounds(bounds);
+    applyClassification(bounds, result);
   }
 
   function handleTerritorySelect(territory: BoardTerritory) {
-    setClaimError(null);
-    setSelectedTerritory(territory);
+    const bounds: SelectionBounds = {
+      x: territory.x,
+      y: territory.y,
+      width: territory.width,
+      height: territory.height,
+    };
+    const result = classifyBounds(bounds);
+    applyClassification(bounds, result);
+    if (result.isValidPurchase) {
+      setSelectedTerritory(territory);
+    }
   }
 
   function handleSizeChange(sizeKey: TerritorySizeKey) {
-    if (!selectedTerritory || !selectedTerritory.id.startsWith("claim-")) {
-      return;
-    }
+    if (!selectionBounds || !selectedTerritory) return;
 
-    const claim = createCustomClaim(
-      selectedTerritory.x,
-      selectedTerritory.y,
-      sizeKey,
-      territories,
+    const { width, height, currentPrice } = createTerritoryFromSize(sizeKey, {
+      x: selectionBounds.x,
+      y: selectionBounds.y,
+    });
+    const { x, y } = snapClaimPosition(
+      selectionBounds.x,
+      selectionBounds.y,
+      width,
+      height,
     );
 
-    if (!claim) {
-      setClaimError(
-        `A ${sizeKey === "small" ? "2×2" : sizeKey === "medium" ? "5×5" : "10×10"} territory doesn't fit here.`,
-      );
+    const bounds: SelectionBounds = { x, y, width, height };
+    const result = classifySelection({
+      x,
+      y,
+      width,
+      height,
+      territories: selectionTerritories,
+    });
+
+    if (!result.isValidPurchase) {
+      applyClassification(bounds, result);
       return;
     }
 
-    setClaimError(null);
-    setSelectedTerritory(claim);
+    setSelectionBounds(bounds);
+    setClassification(result);
+    setSelectedTerritory({
+      id: `claim-${x}-${y}-${sizeKey}`,
+      x,
+      y,
+      width,
+      height,
+      currentPrice,
+      status: "AVAILABLE",
+      sizeKey,
+    });
+  }
+
+  function handleViewOverlappingSpot() {
+    if (!classification || classification.overlappingTerritoryIds.length === 0) {
+      return;
+    }
+
+    const territoryId = classification.overlappingTerritoryIds[0];
+    const territory = territories.find((t) => t.id === territoryId);
+    if (!territory) return;
+
+    handleTerritorySelect(territory);
+  }
+
+  function clearSelection() {
+    setSelectedTerritory(null);
+    setClassification(null);
+    setSelectionBounds(null);
   }
 
   const isCustomClaim =
     selectedTerritory?.id.startsWith("claim-") ?? false;
+
+  const selectionOverlay =
+    selectionBounds && classification
+      ? {
+          bounds: selectionBounds,
+          isValid: classification.isValidPurchase,
+        }
+      : null;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col p-3 sm:p-4">
@@ -139,43 +212,50 @@ export function BoardView({ territories }: BoardViewProps) {
         <BoardCanvas
           territories={territories}
           onSelectTerritory={handleTerritorySelect}
-          onEmptyCellClick={handleEmptyCellClick}
+          onSelectionComplete={handleSelectionComplete}
+          selectionOverlay={selectionOverlay}
         />
         <UrgencyPanel />
         <BoardHint />
-        {claimError ? (
-          <div className="absolute bottom-4 right-4 z-10 max-w-xs rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 shadow-sm">
-            {claimError}
-          </div>
+        {classification && !classification.isValidPurchase ? (
+          <InvalidSelectionPanel
+            classification={classification}
+            onClose={clearSelection}
+            onSelectAnother={clearSelection}
+            onViewExistingSpot={
+              classification.overlappingTerritoryIds.length > 0
+                ? handleViewOverlappingSpot
+                : undefined
+            }
+          />
         ) : null}
-        {selectedTerritory ? (
+        {selectedTerritory && classification?.isValidPurchase ? (
           <SpotPanel
             territory={selectedTerritory}
-            onClose={() => {
-              setSelectedTerritory(null);
-              setClaimError(null);
-            }}
+            classification={classification}
+            onClose={clearSelection}
             isCustomClaim={isCustomClaim}
             onSizeChange={isCustomClaim ? handleSizeChange : undefined}
             canPlaceSize={(sizeKey) => {
-              if (!selectedTerritory) return false;
+              if (!selectionBounds) return false;
               const { width, height } = createTerritoryFromSize(sizeKey, {
-                x: selectedTerritory.x,
-                y: selectedTerritory.y,
+                x: selectionBounds.x,
+                y: selectionBounds.y,
               });
-              const occupied = territories.map((t) => ({
-                x: t.x,
-                y: t.y,
-                width: t.width,
-                height: t.height,
-              }));
-              return canPlaceTerritory(
-                selectedTerritory.x,
-                selectedTerritory.y,
+              const { x, y } = snapClaimPosition(
+                selectionBounds.x,
+                selectionBounds.y,
                 width,
                 height,
-                occupied,
               );
+              const result = classifySelection({
+                x,
+                y,
+                width,
+                height,
+                territories: selectionTerritories,
+              });
+              return result.isValidPurchase;
             }}
           />
         ) : null}

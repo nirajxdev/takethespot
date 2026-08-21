@@ -10,28 +10,36 @@ import {
   saveCheckoutState,
   type CheckoutState,
 } from "@/lib/checkout";
-import {
-  getTakeoverPriceForTerritory,
-  type BoardTerritory,
-} from "@/lib/mock-territories";
+import { getTakeoverPrice } from "@/lib/pricing";
+import type { BoardTerritory } from "@/lib/mock-territories";
 import {
   TERRITORY_SIZES,
   type TerritorySizeKey,
 } from "@/lib/pricing";
+import type { ClassifySelectionResult } from "@/types/selection";
 
 type SpotPanelProps = {
   territory: BoardTerritory;
+  classification: ClassifySelectionResult;
   onClose: () => void;
   isCustomClaim?: boolean;
   onSizeChange?: (sizeKey: TerritorySizeKey) => void;
   canPlaceSize?: (sizeKey: TerritorySizeKey) => boolean;
 };
 
-function startCheckout(territory: BoardTerritory, purchaseType: "claim" | "takeover") {
-  const price =
-    purchaseType === "takeover"
-      ? getTakeoverPriceForTerritory(territory)
-      : territory.currentPrice;
+type InvalidSelectionPanelProps = {
+  classification: ClassifySelectionResult;
+  onClose: () => void;
+  onSelectAnother: () => void;
+  onViewExistingSpot?: () => void;
+};
+
+function startCheckout(
+  territory: BoardTerritory,
+  classification: ClassifySelectionResult,
+) {
+  const purchaseType = classification.purchaseType ?? "claim";
+  const price = classification.price ?? territory.currentPrice;
 
   const state: CheckoutState = {
     sessionId: createCheckoutSessionId(),
@@ -64,21 +72,162 @@ const SIZE_LABELS: Record<TerritorySizeKey, string> = {
   large: "10×10",
 };
 
+export function InvalidSelectionPanel({
+  classification,
+  onClose,
+  onSelectAnother,
+  onViewExistingSpot,
+}: InvalidSelectionPanelProps) {
+  const isPartial = classification.type === "PARTIAL_OVERLAP";
+  const isMultiple = classification.type === "MULTIPLE_OVERLAP";
+
+  const helperText = isPartial
+    ? "You can claim available space or take over one complete spot."
+    : isMultiple
+      ? "You can claim available space or take over one complete spot at a time."
+      : classification.message;
+
+  return (
+    <div className="absolute right-4 top-4 z-10 w-80 rounded-lg border border-red-200 bg-background shadow-lg">
+      <div className="flex items-start justify-between border-b p-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-widest text-red-600">
+            Invalid selection
+          </p>
+          <h2 className="mt-1 text-lg font-semibold">
+            {isPartial || isMultiple
+              ? classification.message
+              : "Selection not allowed"}
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-muted-foreground hover:text-foreground"
+          aria-label="Close panel"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="space-y-4 p-4">
+        <p className="text-sm text-muted-foreground">{helperText}</p>
+        <div className="flex flex-col gap-2">
+          <Button variant="outline" className="w-full" onClick={onSelectAnother}>
+            Select another area
+          </Button>
+          {onViewExistingSpot ? (
+            <Button className="w-full" onClick={onViewExistingSpot}>
+              View existing spot
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SpotPanel({
   territory,
+  classification,
   onClose,
   isCustomClaim = false,
   onSizeChange,
   canPlaceSize,
 }: SpotPanelProps) {
   const router = useRouter();
-  const isAvailable = territory.status === "AVAILABLE";
-  const takeoverPrice = getTakeoverPriceForTerritory(territory);
+  const isTakeover = classification.purchaseType === "takeover";
+  const price = classification.price ?? territory.currentPrice;
+  const takeoverPrice = isTakeover
+    ? price
+    : getTakeoverPrice(territory.currentPrice);
 
   function handleClaimOrTake() {
-    const purchaseType = isAvailable ? "claim" : "takeover";
-    startCheckout(territory, purchaseType);
+    startCheckout(territory, classification);
     router.push("/checkout");
+  }
+
+  if (isTakeover) {
+    return (
+      <div className="absolute right-4 top-4 z-10 w-80 rounded-lg border bg-background shadow-lg">
+        <div className="flex items-start justify-between border-b p-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+              This spot is owned
+            </p>
+            <h2 className="mt-1 text-lg font-semibold">
+              {territory.product?.name ?? "Owned territory"}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Close panel"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-4 p-4">
+          <div className="text-sm text-muted-foreground">
+            <p>
+              Size: {territory.width} × {territory.height}
+            </p>
+            <p>Location: ({territory.x}, {territory.y})</p>
+          </div>
+
+          {territory.product?.logoUrl ? (
+            <img
+              src={territory.product.logoUrl}
+              alt={territory.product.name}
+              className="h-12 w-12 rounded-md border object-cover"
+            />
+          ) : null}
+
+          {territory.product?.description ? (
+            <p className="text-sm text-muted-foreground">
+              {territory.product.description}
+            </p>
+          ) : null}
+
+          <div className="space-y-1 text-sm">
+            <p>
+              Current value:{" "}
+              <span className="font-semibold">₹{territory.currentPrice}</span>
+            </p>
+            <p>
+              Take it for{" "}
+              <span className="font-semibold">₹{takeoverPrice}</span>
+            </p>
+          </div>
+
+          {territory.product?.websiteUrl ? (
+            <Link
+              href={territory.product.websiteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-muted-foreground underline hover:text-foreground"
+            >
+              Visit website
+            </Link>
+          ) : null}
+
+          <Button className="w-full" onClick={handleClaimOrTake}>
+            Take this spot
+          </Button>
+
+          <Link
+            href="/how-it-works"
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "sm" }),
+              "w-full",
+            )}
+          >
+            How it works
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -86,7 +235,7 @@ export function SpotPanel({
       <div className="flex items-start justify-between border-b p-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            {isAvailable ? "Available spot" : "Occupied spot"}
+            Available spot
           </p>
           <h2 className="mt-1 text-lg font-semibold">
             {territory.width} × {territory.height} Territory
@@ -107,103 +256,56 @@ export function SpotPanel({
           <p>Location: ({territory.x}, {territory.y})</p>
         </div>
 
-        {isAvailable ? (
-          <>
-            {isCustomClaim && onSizeChange ? (
-              <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                  Territory size
-                </p>
-                <div className="flex gap-2">
-                  {(Object.keys(TERRITORY_SIZES) as TerritorySizeKey[]).map(
-                    (sizeKey) => {
-                      const fits = canPlaceSize?.(sizeKey) ?? true;
-                      const isSelected = territory.sizeKey === sizeKey;
-                      return (
-                        <button
-                          key={sizeKey}
-                          type="button"
-                          disabled={!fits}
-                          onClick={() => onSizeChange(sizeKey)}
-                          className={cn(
-                            "flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
-                            isSelected
-                              ? "border-emerald-600 bg-emerald-50 text-emerald-800"
-                              : fits
-                                ? "border-neutral-200 hover:border-emerald-400 hover:bg-emerald-50/50"
-                                : "border-neutral-100 text-neutral-300 cursor-not-allowed",
-                          )}
-                        >
-                          {SIZE_LABELS[sizeKey]}
-                          <span className="block text-[10px] font-normal text-muted-foreground">
-                            ₹{TERRITORY_SIZES[sizeKey].price}
-                          </span>
-                        </button>
-                      );
-                    },
-                  )}
-                </div>
-              </div>
-            ) : null}
+        {isCustomClaim && onSizeChange ? (
+          <div className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+              Territory size
+            </p>
+            <div className="flex gap-2">
+              {(Object.keys(TERRITORY_SIZES) as TerritorySizeKey[]).map(
+                (sizeKey) => {
+                  const fits = canPlaceSize?.(sizeKey) ?? true;
+                  const isSelected = territory.sizeKey === sizeKey;
+                  return (
+                    <button
+                      key={sizeKey}
+                      type="button"
+                      disabled={!fits}
+                      onClick={() => onSizeChange(sizeKey)}
+                      className={cn(
+                        "flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
+                        isSelected
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-800"
+                          : fits
+                            ? "border-neutral-200 hover:border-emerald-400 hover:bg-emerald-50/50"
+                            : "border-neutral-100 text-neutral-300 cursor-not-allowed",
+                      )}
+                    >
+                      {SIZE_LABELS[sizeKey]}
+                      <span className="block text-[10px] font-normal text-muted-foreground">
+                        ₹{TERRITORY_SIZES[sizeKey].price}
+                      </span>
+                    </button>
+                  );
+                },
+              )}
+            </div>
+          </div>
+        ) : null}
 
-            <p className="text-sm">
-              This spot is available. Claim it before someone else does.
-            </p>
-            <p className="text-sm">
-              Price:{" "}
-              <span className="font-semibold text-foreground">
-                ₹{territory.currentPrice}
-              </span>
-            </p>
-            <div className="rounded-md border border-dashed bg-muted/30 p-3 text-center text-xs text-muted-foreground">
-              Estimated logo placement area
-            </div>
-            <Button className="w-full" onClick={handleClaimOrTake}>
-              Claim this spot
-            </Button>
-          </>
-        ) : (
-          <>
-            {territory.product?.logoUrl ? (
-              <img
-                src={territory.product.logoUrl}
-                alt={territory.product.name}
-                className="h-12 w-12 rounded-md border object-cover"
-              />
-            ) : null}
-            <div>
-              <p className="font-semibold">{territory.product?.name}</p>
-              {territory.product?.description ? (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {territory.product.description}
-                </p>
-              ) : null}
-            </div>
-            <div className="space-y-1 text-sm">
-              <p>
-                Current value:{" "}
-                <span className="font-semibold">₹{territory.currentPrice}</span>
-              </p>
-              <p>
-                Takeover price:{" "}
-                <span className="font-semibold">₹{takeoverPrice}</span>
-              </p>
-            </div>
-            {territory.product?.websiteUrl ? (
-              <Link
-                href={territory.product.websiteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-muted-foreground underline hover:text-foreground"
-              >
-                Visit website
-              </Link>
-            ) : null}
-            <Button className="w-full" onClick={handleClaimOrTake}>
-              Take this spot
-            </Button>
-          </>
-        )}
+        <p className="text-sm">
+          This spot is available. Claim it before someone else does.
+        </p>
+        <p className="text-sm">
+          Price:{" "}
+          <span className="font-semibold text-foreground">₹{price}</span>
+        </p>
+        <div className="rounded-md border border-dashed bg-muted/30 p-3 text-center text-xs text-muted-foreground">
+          Estimated logo placement area
+        </div>
+        <Button className="w-full" onClick={handleClaimOrTake}>
+          Claim this spot
+        </Button>
 
         <Link
           href="/how-it-works"

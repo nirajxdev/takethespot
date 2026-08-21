@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { createCheckoutOrder } from "@/actions/checkout";
+import { createCheckoutOrder, finalizeCheckoutPurchase, checkTerritoryAvailability } from "@/actions/checkout";
 import {
   clearCheckoutState,
   getCheckoutState,
@@ -29,6 +29,36 @@ export function CheckoutPayment() {
       router.replace("/checkout");
       return;
     }
+
+    checkTerritoryAvailability({
+      x: state.x,
+      y: state.y,
+      width: state.width,
+      height: state.height,
+      territoryId: state.territoryId,
+      purchaseType: state.purchaseType,
+      expectedPrice: state.price,
+    }).then((result) => {
+      if (!result.success) return;
+
+      if (!result.data.available) {
+        setError(
+          result.data.reason ??
+            "This spot is no longer available. Your form data is saved — pick another spot on the board.",
+        );
+        return;
+      }
+
+      if (
+        result.data.updatedPrice !== undefined &&
+        result.data.updatedPrice !== state.price
+      ) {
+        setError(
+          `Price updated to ₹${result.data.updatedPrice}. Return to the board to confirm before paying.`,
+        );
+      }
+    });
+
     setCheckout(state);
   }, [router]);
 
@@ -46,7 +76,7 @@ export function CheckoutPayment() {
     setSuccess(null);
     setIsProcessing(true);
 
-    const result = await createCheckoutOrder({
+    const orderResult = await createCheckoutOrder({
       sessionId: checkout.sessionId,
       x: checkout.x,
       y: checkout.y,
@@ -56,18 +86,42 @@ export function CheckoutPayment() {
       purchaseType: checkout.purchaseType,
       amount: checkout.price,
       productName: checkout.productData.name,
+      productDescription: checkout.productData.description,
+      productWebsiteUrl: checkout.productData.websiteUrl,
+      productLogoUrl: checkout.productData.logoUrl,
+    });
+
+    if (!orderResult.success) {
+      setError(orderResult.error);
+      setIsProcessing(false);
+      return;
+    }
+
+    const finalizeResult = await finalizeCheckoutPurchase({
+      sessionId: checkout.sessionId,
+      x: checkout.x,
+      y: checkout.y,
+      width: checkout.width,
+      height: checkout.height,
+      territoryId: checkout.territoryId,
+      purchaseType: checkout.purchaseType,
+      amount: orderResult.data.amount,
+      productName: checkout.productData.name,
+      productDescription: checkout.productData.description,
+      productWebsiteUrl: checkout.productData.websiteUrl,
+      productLogoUrl: checkout.productData.logoUrl,
     });
 
     setIsProcessing(false);
 
-    if (!result.success) {
-      setError(result.error);
+    if (!finalizeResult.success) {
+      setError(finalizeResult.error);
       return;
     }
 
     clearCheckoutState();
     setSuccess(
-      `Order ${result.data.orderId} created for ₹${result.data.amount}. Payment integration ships in Phase 5 — your spot will activate after payment.`,
+      `Order ${orderResult.data.orderId} created for ₹${orderResult.data.amount}. Payment integration ships in Phase 5 — your spot will activate after payment.`,
     );
   }
 

@@ -28,8 +28,8 @@ export function BoardHint() {
       </p>
       <p className="mt-2 text-sm leading-snug text-emerald-900">
         Click a <span className="font-semibold">green highlighted spot</span> to
-        claim it, or click any open area on the grid to claim a 2×2 territory
-        there.
+        claim it, drag on open grid space to size a territory, or click an owned
+        spot to take it over.
       </p>
       <button
         type="button"
