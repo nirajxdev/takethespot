@@ -14,10 +14,17 @@ import {
   getTakeoverPriceForTerritory,
   type BoardTerritory,
 } from "@/lib/mock-territories";
+import {
+  TERRITORY_SIZES,
+  type TerritorySizeKey,
+} from "@/lib/pricing";
 
 type SpotPanelProps = {
   territory: BoardTerritory;
   onClose: () => void;
+  isCustomClaim?: boolean;
+  onSizeChange?: (sizeKey: TerritorySizeKey) => void;
+  canPlaceSize?: (sizeKey: TerritorySizeKey) => boolean;
 };
 
 function startCheckout(territory: BoardTerritory, purchaseType: "claim" | "takeover") {
@@ -35,7 +42,7 @@ function startCheckout(territory: BoardTerritory, purchaseType: "claim" | "takeo
     territorySizeKey: territory.sizeKey,
     purchaseType,
     price,
-    territoryId: territory.id,
+    territoryId: territory.id.startsWith("claim-") ? undefined : territory.id,
     occupiedProduct:
       purchaseType === "takeover" && territory.product
         ? {
@@ -51,7 +58,19 @@ function startCheckout(territory: BoardTerritory, purchaseType: "claim" | "takeo
   saveCheckoutState(state);
 }
 
-export function SpotPanel({ territory, onClose }: SpotPanelProps) {
+const SIZE_LABELS: Record<TerritorySizeKey, string> = {
+  small: "2×2",
+  medium: "5×5",
+  large: "10×10",
+};
+
+export function SpotPanel({
+  territory,
+  onClose,
+  isCustomClaim = false,
+  onSizeChange,
+  canPlaceSize,
+}: SpotPanelProps) {
   const router = useRouter();
   const isAvailable = territory.status === "AVAILABLE";
   const takeoverPrice = getTakeoverPriceForTerritory(territory);
@@ -90,8 +109,48 @@ export function SpotPanel({ territory, onClose }: SpotPanelProps) {
 
         {isAvailable ? (
           <>
+            {isCustomClaim && onSizeChange ? (
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                  Territory size
+                </p>
+                <div className="flex gap-2">
+                  {(Object.keys(TERRITORY_SIZES) as TerritorySizeKey[]).map(
+                    (sizeKey) => {
+                      const fits = canPlaceSize?.(sizeKey) ?? true;
+                      const isSelected = territory.sizeKey === sizeKey;
+                      return (
+                        <button
+                          key={sizeKey}
+                          type="button"
+                          disabled={!fits}
+                          onClick={() => onSizeChange(sizeKey)}
+                          className={cn(
+                            "flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
+                            isSelected
+                              ? "border-emerald-600 bg-emerald-50 text-emerald-800"
+                              : fits
+                                ? "border-neutral-200 hover:border-emerald-400 hover:bg-emerald-50/50"
+                                : "border-neutral-100 text-neutral-300 cursor-not-allowed",
+                          )}
+                        >
+                          {SIZE_LABELS[sizeKey]}
+                          <span className="block text-[10px] font-normal text-muted-foreground">
+                            ₹{TERRITORY_SIZES[sizeKey].price}
+                          </span>
+                        </button>
+                      );
+                    },
+                  )}
+                </div>
+              </div>
+            ) : null}
+
             <p className="text-sm">
-              This spot is currently available. Price:{" "}
+              This spot is available. Claim it before someone else does.
+            </p>
+            <p className="text-sm">
+              Price:{" "}
               <span className="font-semibold text-foreground">
                 ₹{territory.currentPrice}
               </span>

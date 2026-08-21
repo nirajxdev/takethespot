@@ -11,10 +11,16 @@ const BOARD_PADDING = 32;
 type BoardCanvasProps = {
   territories: BoardTerritory[];
   onSelectTerritory: (territory: BoardTerritory) => void;
+  onEmptyCellClick: (cellX: number, cellY: number) => void;
 };
 
-export function BoardCanvas({ territories, onSelectTerritory }: BoardCanvasProps) {
+export function BoardCanvas({
+  territories,
+  onSelectTerritory,
+  onEmptyCellClick,
+}: BoardCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
 
   const boardWidth = BOARD_SIZE * CELL_SIZE;
@@ -43,6 +49,32 @@ export function BoardCanvas({ territories, onSelectTerritory }: BoardCanvasProps
     return () => observer.disconnect();
   }, [boardWidth, boardHeight]);
 
+  function handleBackgroundClick(event: React.MouseEvent<SVGSVGElement>) {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return;
+
+    const svgPoint = point.matrixTransform(ctm.inverse());
+    const cellX = Math.floor(svgPoint.x / CELL_SIZE);
+    const cellY = Math.floor(svgPoint.y / CELL_SIZE);
+
+    if (
+      cellX < 0 ||
+      cellY < 0 ||
+      cellX >= BOARD_SIZE ||
+      cellY >= BOARD_SIZE
+    ) {
+      return;
+    }
+
+    onEmptyCellClick(cellX, cellY);
+  }
+
   return (
     <div
       ref={containerRef}
@@ -50,15 +82,43 @@ export function BoardCanvas({ territories, onSelectTerritory }: BoardCanvasProps
     >
       {displaySize.width > 0 && displaySize.height > 0 ? (
         <svg
+          ref={svgRef}
           viewBox={`0 0 ${boardWidth} ${boardHeight}`}
           width={displaySize.width}
           height={displaySize.height}
-          className="shrink-0 rounded-lg border-2 border-neutral-300 bg-white shadow-lg"
+          className="shrink-0 cursor-crosshair rounded-lg border-2 border-neutral-300 bg-white shadow-lg"
+          onClick={handleBackgroundClick}
         >
+          {/* Subtle cell grid — hints that every cell is clickable */}
+          {Array.from({ length: BOARD_SIZE + 1 }).map((_, i) => {
+            const pos = i * CELL_SIZE;
+            return (
+              <g key={`cell-grid-${i}`} className="pointer-events-none">
+                <line
+                  x1={pos}
+                  y1={0}
+                  x2={pos}
+                  y2={boardHeight}
+                  stroke="oklch(0.94 0 0)"
+                  strokeWidth={0.5}
+                />
+                <line
+                  x1={0}
+                  y1={pos}
+                  x2={boardWidth}
+                  y2={pos}
+                  stroke="oklch(0.94 0 0)"
+                  strokeWidth={0.5}
+                />
+              </g>
+            );
+          })}
+
+          {/* Major grid lines every 10 cells */}
           {Array.from({ length: Math.floor(BOARD_SIZE / 10) + 1 }).map((_, i) => {
             const pos = i * 10 * CELL_SIZE;
             return (
-              <g key={`grid-${i}`}>
+              <g key={`grid-${i}`} className="pointer-events-none">
                 <line
                   x1={pos}
                   y1={0}
@@ -98,16 +158,16 @@ export function BoardCanvas({ territories, onSelectTerritory }: BoardCanvasProps
               >
                 {isAvailable ? (
                   <rect
-                    x={x - 1}
-                    y={y - 1}
-                    width={w + 2}
-                    height={h + 2}
-                    fill="oklch(0.92 0.06 145)"
-                    stroke="oklch(0.65 0.14 145)"
-                    strokeWidth={1}
-                    strokeDasharray="4 3"
-                    rx={3}
-                    className="pointer-events-none"
+                    x={x - 2}
+                    y={y - 2}
+                    width={w + 4}
+                    height={h + 4}
+                    fill="oklch(0.90 0.08 145)"
+                    stroke="oklch(0.55 0.18 145)"
+                    strokeWidth={2}
+                    strokeDasharray="5 3"
+                    rx={4}
+                    className="pointer-events-none animate-pulse"
                   />
                 ) : null}
                 <rect
@@ -118,10 +178,10 @@ export function BoardCanvas({ territories, onSelectTerritory }: BoardCanvasProps
                   fill={
                     isOwned
                       ? "oklch(0.9 0.01 250)"
-                      : "oklch(0.96 0.04 145)"
+                      : "oklch(0.93 0.06 145)"
                   }
                   stroke={
-                    isOwned ? "oklch(0.4 0 0)" : "oklch(0.55 0.12 145)"
+                    isOwned ? "oklch(0.4 0 0)" : "oklch(0.5 0.16 145)"
                   }
                   strokeWidth={isOwned ? 1.5 : 2}
                   strokeDasharray={isOwned ? undefined : "6 4"}
@@ -163,7 +223,7 @@ export function BoardCanvas({ territories, onSelectTerritory }: BoardCanvasProps
                       dominantBaseline="middle"
                       fontSize={h > 30 ? 11 : 9}
                       fontWeight={600}
-                      fill="oklch(0.45 0.12 145)"
+                      fill="oklch(0.4 0.14 145)"
                       className="pointer-events-none select-none"
                     >
                       Open
@@ -175,7 +235,7 @@ export function BoardCanvas({ territories, onSelectTerritory }: BoardCanvasProps
                         textAnchor="middle"
                         dominantBaseline="middle"
                         fontSize={9}
-                        fill="oklch(0.5 0.08 145)"
+                        fill="oklch(0.45 0.1 145)"
                         className="pointer-events-none select-none"
                       >
                         ₹{territory.currentPrice}
@@ -187,7 +247,7 @@ export function BoardCanvas({ territories, onSelectTerritory }: BoardCanvasProps
                         textAnchor="middle"
                         dominantBaseline="middle"
                         fontSize={8}
-                        fill="oklch(0.5 0.08 145)"
+                        fill="oklch(0.45 0.1 145)"
                         className="pointer-events-none select-none"
                       >
                         ₹{territory.currentPrice}

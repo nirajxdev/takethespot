@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 
 const MESSAGES = [
-  "Claim your spot before someone else does.",
-  "Every spot is up for grabs.",
-  "See a spot you want? Take it.",
+  "Click a green highlighted spot to claim it.",
+  "Or click any open area to claim a 2×2 territory.",
+  "Every spot is up for grabs — claim yours now.",
   "Once it's gone, you'll have to pay more to take it.",
 ];
 

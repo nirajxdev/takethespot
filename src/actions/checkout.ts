@@ -84,7 +84,6 @@ export async function checkTerritoryAvailability(
   }
 
   const mockOverlaps = getMockTerritories()
-    .filter((t) => t.status === "OWNED")
     .some((t) => territoriesOverlap(bounds, t));
 
   if (mockOverlaps) {
@@ -92,7 +91,7 @@ export async function checkTerritoryAvailability(
       success: true,
       data: {
         available: false,
-        reason: "This spot overlaps an occupied territory.",
+        reason: "This spot overlaps an existing territory.",
       },
     };
   }
@@ -100,7 +99,6 @@ export async function checkTerritoryAvailability(
   return { success: true, data: { available: true } };
   } catch {
     const mockOverlaps = getMockTerritories()
-      .filter((t) => t.status === "OWNED")
       .some((t) => territoriesOverlap(bounds, t));
 
     if (mockOverlaps && input.purchaseType === "claim") {
@@ -108,7 +106,7 @@ export async function checkTerritoryAvailability(
         success: true,
         data: {
           available: false,
-          reason: "This spot overlaps an occupied territory.",
+          reason: "This spot overlaps an existing territory.",
         },
       };
     }
