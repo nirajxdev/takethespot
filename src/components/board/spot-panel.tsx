@@ -254,10 +254,7 @@ export function SpotPanel({
             {formatPrice(price)}
           </span>
           {price === MIN_CLAIM_PRICE_CENTS ? (
-            <span className="text-muted-foreground">
-              {" "}
-              · {formatPrice(MIN_CLAIM_PRICE_CENTS)} minimum
-            </span>
+            <span className="text-muted-foreground"> (minimum)</span>
           ) : null}
         </p>
         <div className="rounded-md border border-dashed bg-muted/30 p-3 text-center text-xs text-muted-foreground">
