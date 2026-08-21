@@ -98,7 +98,7 @@ export async function validateTerritorySelection(input: {
   y: number;
   width: number;
   height: number;
-  purchaseType: "claim" | "takeover" | "mixed";
+  purchaseType: "claim" | "takeover";
   territoryId?: string;
   expectedPrice?: number;
 }): Promise<ClassifySelectionResult & { priceMismatch?: boolean }> {
@@ -120,9 +120,7 @@ export async function validateTerritorySelection(input: {
     const message =
       input.purchaseType === "takeover"
         ? "This spot is not available for takeover."
-        : input.purchaseType === "mixed"
-          ? "This spot is not available for takeover and expansion."
-          : "This spot must be taken over instead of claimed.";
+        : "This spot must be taken over instead of claimed.";
 
     return {
       ...result,
@@ -144,7 +142,7 @@ export async function validateTerritorySelection(input: {
   }
 
   if (
-    (input.purchaseType === "takeover" || input.purchaseType === "mixed") &&
+    input.purchaseType === "takeover" &&
     input.territoryId &&
     !result.matchingTerritory
   ) {

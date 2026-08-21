@@ -13,7 +13,7 @@ export type TerritoryAvailabilityInput = {
   width: number;
   height: number;
   territoryId?: string;
-  purchaseType: "claim" | "takeover" | "mixed";
+  purchaseType: "claim" | "takeover";
   expectedPrice?: number;
 };
 
@@ -37,7 +37,7 @@ export type FinalizeCheckoutResult = {
   orderId: string;
   amount: number;
   territoryId: string;
-  purchaseType: "claim" | "takeover" | "mixed";
+  purchaseType: "claim" | "takeover";
 };
 
 export async function checkTerritoryAvailability(
@@ -148,108 +148,6 @@ export async function finalizeCheckoutPurchase(
   const orderId = `order_${input.sessionId}`;
 
   try {
-    if (input.purchaseType === "mixed" && validation.matchingTerritory) {
-      const absorbedTerritoryId = validation.matchingTerritory.id;
-
-      const result = await prisma.$transaction(async (tx) => {
-        const absorbedTerritory = await tx.territory.findUnique({
-          where: { id: absorbedTerritoryId },
-        });
-
-        if (!absorbedTerritory || absorbedTerritory.status !== "OWNED") {
-          throw new Error("This spot is no longer available for takeover.");
-        }
-
-        if (
-          absorbedTerritory.x < input.x ||
-          absorbedTerritory.y < input.y ||
-          absorbedTerritory.x + absorbedTerritory.width >
-            input.x + input.width ||
-          absorbedTerritory.y + absorbedTerritory.height >
-            input.y + input.height
-        ) {
-          throw new Error(
-            "Territory boundaries changed. Please reselect on the board.",
-          );
-        }
-
-        const slug = slugifyProductName(input.productName);
-        const product = await tx.product.create({
-          data: {
-            userId: user.id,
-            name: input.productName,
-            slug: await ensureUniqueSlug(tx, slug),
-            description: input.productDescription,
-            websiteUrl: input.productWebsiteUrl,
-            logoUrl: input.productLogoUrl,
-          },
-        });
-
-        await tx.territory.delete({
-          where: { id: absorbedTerritoryId },
-        });
-
-        const newTerritory = await tx.territory.create({
-          data: {
-            productId: product.id,
-            x: input.x,
-            y: input.y,
-            width: input.width,
-            height: input.height,
-            currentPrice: serverAmount,
-            initialPrice: serverAmount,
-            status: "OWNED",
-          },
-        });
-
-        await tx.purchase.create({
-          data: {
-            userId: user.id,
-            productId: product.id,
-            territoryId: newTerritory.id,
-            amount: serverAmount,
-            type: "TAKEOVER",
-            status: "COMPLETED",
-            paymentId: orderId,
-          },
-        });
-
-        await tx.activity.create({
-          data: {
-            userId: user.id,
-            productId: product.id,
-            territoryId: newTerritory.id,
-            type: "TERRITORY_TAKEN_OVER",
-            metadata: {
-              previousTerritoryId: absorbedTerritoryId,
-              previousPrice: absorbedTerritory.currentPrice,
-              takeoverPrice: validation.priceBreakdown?.takeoverPrice,
-              expansionPrice: validation.priceBreakdown?.emptyCellsPrice,
-              expansionCells: validation.priceBreakdown?.emptyCellCount,
-              expandedBounds: {
-                x: input.x,
-                y: input.y,
-                width: input.width,
-                height: input.height,
-              },
-            },
-          },
-        });
-
-        return { territoryId: newTerritory.id };
-      });
-
-      return {
-        success: true,
-        data: {
-          orderId,
-          amount: serverAmount,
-          territoryId: result.territoryId,
-          purchaseType: "mixed",
-        },
-      };
-    }
-
     if (input.purchaseType === "takeover" && validation.matchingTerritory) {
       const territoryId = validation.matchingTerritory.id;
 

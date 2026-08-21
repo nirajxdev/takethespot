@@ -12,56 +12,6 @@ export function calculateClaimPrice(width: number, height: number): number {
   return Math.max(calculated, MIN_CLAIM_PRICE_CENTS);
 }
 
-export function calculateEmptyCellsPrice(emptyCellCount: number): number {
-  const calculated = emptyCellCount * PRICE_PER_CELL_CENTS;
-  return Math.max(calculated, MIN_CLAIM_PRICE_CENTS);
-}
-
-export function calculateTakeoverCellsPrice(
-  occupiedCellCount: number,
-  territoryCurrentPriceCents: number,
-  territoryArea: number,
-): number {
-  if (occupiedCellCount >= territoryArea) {
-    return getTakeoverPrice(territoryCurrentPriceCents);
-  }
-
-  return Math.ceil(
-    (occupiedCellCount / territoryArea) *
-      territoryCurrentPriceCents *
-      TAKEOVER_MULTIPLIER,
-  );
-}
-
-export function calculateMixedSelectionPrice(input: {
-  emptyCells: number;
-  occupiedCells: number;
-  overlappingTerritory: {
-    currentPrice: number;
-    width: number;
-    height: number;
-  };
-}): {
-  takeoverPrice: number;
-  emptyCellsPrice: number;
-  total: number;
-} {
-  const territoryArea =
-    input.overlappingTerritory.width * input.overlappingTerritory.height;
-  const takeoverPrice = calculateTakeoverCellsPrice(
-    input.occupiedCells,
-    input.overlappingTerritory.currentPrice,
-    territoryArea,
-  );
-  const emptyCellsPrice = calculateEmptyCellsPrice(input.emptyCells);
-
-  return {
-    takeoverPrice,
-    emptyCellsPrice,
-    total: takeoverPrice + emptyCellsPrice,
-  };
-}
-
 export function getTakeoverPrice(currentPriceCents: number): number {
   return Math.ceil(currentPriceCents * TAKEOVER_MULTIPLIER);
 }

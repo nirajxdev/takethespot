@@ -10,7 +10,7 @@ export type CreateReservationInput = {
   y: number;
   width: number;
   height: number;
-  purchaseType: "claim" | "takeover" | "mixed";
+  purchaseType: "claim" | "takeover";
   territoryId?: string;
 };
 

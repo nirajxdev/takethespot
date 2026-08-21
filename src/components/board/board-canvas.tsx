@@ -213,23 +213,16 @@ export function BoardCanvas({
   const overlayValid = activeBounds
     ? activeClassification?.isValidPurchase ?? false
     : (selectionOverlay?.isValid ?? true);
-  const isMixedSelection = activeClassification?.type === "MIXED_SELECTION";
 
   const overlayFill = !overlayValid
     ? "oklch(0.75 0.15 25 / 0.35)"
-    : isMixedSelection
-      ? "oklch(0.88 0.14 75 / 0.4)"
-      : "oklch(0.85 0.12 145 / 0.35)";
+    : "oklch(0.85 0.12 145 / 0.35)";
   const overlayStroke = !overlayValid
     ? "oklch(0.55 0.2 25)"
-    : isMixedSelection
-      ? "oklch(0.62 0.18 75)"
-      : "oklch(0.5 0.18 145)";
+    : "oklch(0.5 0.18 145)";
   const overlayTextFill = !overlayValid
     ? "oklch(0.45 0.18 25)"
-    : isMixedSelection
-      ? "oklch(0.42 0.16 75)"
-      : "oklch(0.35 0.14 145)";
+    : "oklch(0.35 0.14 145)";
 
   return (
     <div

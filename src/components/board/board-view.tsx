@@ -38,20 +38,6 @@ function territoryFromClassification(
   if (!classification.isValidPurchase) return null;
 
   const matching = classification.matchingTerritory;
-  if (matching && classification.purchaseType === "mixed") {
-    const existing = territories.find((t) => t.id === matching.id);
-    return {
-      id: `claim-${bounds.x}-${bounds.y}-${bounds.width}x${bounds.height}`,
-      x: bounds.x,
-      y: bounds.y,
-      width: bounds.width,
-      height: bounds.height,
-      currentPrice: classification.price ?? 0,
-      status: "OWNED",
-      product: existing?.product,
-    };
-  }
-
   if (matching) {
     const existing = territories.find((t) => t.id === matching.id);
     if (existing) return existing;

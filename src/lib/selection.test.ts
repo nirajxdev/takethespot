@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   calculateClaimPrice,
-  calculateEmptyCellsPrice,
   getTakeoverPrice,
   MIN_CLAIM_PRICE_CENTS,
 } from "@/lib/pricing";
@@ -139,7 +138,7 @@ describe("classifySelection", () => {
     expect(result.isValidPurchase).toBe(false);
   });
 
-  it("classifies containment expansion as MIXED_SELECTION", () => {
+  it("rejects containment expansion (territory plus free space)", () => {
     const result = classifySelection({
       x: 10,
       y: 10,
@@ -148,26 +147,12 @@ describe("classifySelection", () => {
       territories: [ownedTerritory],
     });
 
-    const territoryArea = 10 * 10;
-    const extraCells = 15 * 10 - territoryArea;
-
-    expect(result.type).toBe("MIXED_SELECTION");
-    expect(result.isValidPurchase).toBe(true);
-    expect(result.purchaseType).toBe("mixed");
-    expect(result.matchingTerritory?.id).toBe("owned-1");
-    expect(result.priceBreakdown).toEqual({
-      takeoverPrice: getTakeoverPrice(ownedTerritory.currentPrice!),
-      takeoverCellCount: territoryArea,
-      emptyCellsPrice: calculateEmptyCellsPrice(extraCells),
-      emptyCellCount: extraCells,
-      totalPrice:
-        getTakeoverPrice(ownedTerritory.currentPrice!) +
-        calculateEmptyCellsPrice(extraCells),
-    });
-    expect(result.price).toBe(result.priceBreakdown?.totalPrice);
+    expect(result.type).toBe("PARTIAL_OVERLAP");
+    expect(result.isValidPurchase).toBe(false);
+    expect(result.message).toBe("This selection overlaps an existing spot.");
   });
 
-  it("classifies vertical containment expansion as MIXED_SELECTION", () => {
+  it("rejects vertical containment expansion (territory plus free space)", () => {
     const result = classifySelection({
       x: 10,
       y: 10,
@@ -176,9 +161,8 @@ describe("classifySelection", () => {
       territories: [ownedTerritory],
     });
 
-    expect(result.type).toBe("MIXED_SELECTION");
-    expect(result.isValidPurchase).toBe(true);
-    expect(result.purchaseType).toBe("mixed");
+    expect(result.type).toBe("PARTIAL_OVERLAP");
+    expect(result.isValidPurchase).toBe(false);
   });
 
   it("rejects multiple territory overlap", () => {

@@ -33,11 +33,6 @@ function startCheckout(
 ) {
   const purchaseType = classification.purchaseType ?? "claim";
   const price = classification.price ?? territory.currentPrice;
-  const matchingTerritory = classification.matchingTerritory;
-  const occupiedSource =
-    purchaseType === "mixed" && matchingTerritory
-      ? matchingTerritory
-      : territory;
 
   const state: CheckoutState = {
     sessionId: createCheckoutSessionId(),
@@ -47,24 +42,17 @@ function startCheckout(
     height: territory.height,
     purchaseType,
     price,
-    territoryId:
-      purchaseType === "mixed"
-        ? matchingTerritory?.id
-        : territory.id.startsWith("claim-")
-          ? undefined
-          : territory.id,
+    territoryId: territory.id.startsWith("claim-") ? undefined : territory.id,
     occupiedProduct:
-      (purchaseType === "takeover" || purchaseType === "mixed") &&
-      territory.product
+      purchaseType === "takeover" && territory.product
         ? {
             name: territory.product.name,
             description: territory.product.description,
             websiteUrl: territory.product.websiteUrl,
             logoUrl: territory.product.logoUrl,
-            currentPrice: occupiedSource.currentPrice ?? territory.currentPrice,
+            currentPrice: territory.currentPrice,
           }
         : undefined,
-    priceBreakdown: classification.priceBreakdown,
   };
 
   saveCheckoutState(state);
@@ -131,7 +119,6 @@ export function SpotPanel({
 }: SpotPanelProps) {
   const router = useRouter();
   const isTakeover = classification.purchaseType === "takeover";
-  const isMixed = classification.purchaseType === "mixed";
   const price = classification.price ?? territory.currentPrice;
   const cellCount = territory.width * territory.height;
   const takeoverPrice = isTakeover
@@ -139,91 +126,10 @@ export function SpotPanel({
     : getTakeoverPrice(
         classification.matchingTerritory?.currentPrice ?? territory.currentPrice,
       );
-  const breakdown = classification.priceBreakdown;
 
   function handleClaimOrTake() {
     startCheckout(territory, classification);
     router.push("/checkout");
-  }
-
-  if (isMixed && breakdown) {
-    return (
-      <div className="absolute right-4 top-4 z-10 w-80 rounded-lg border bg-background shadow-lg">
-        <div className="flex items-start justify-between border-b p-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-widest text-amber-600">
-              Take over and expand
-            </p>
-            <h2 className="mt-1 text-lg font-semibold">
-              {territory.product?.name ?? "Owned territory"}
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground"
-            aria-label="Close panel"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="space-y-4 p-4">
-          <div className="text-sm text-muted-foreground">
-            <p>
-              New size: {territory.width} × {territory.height} ({cellCount}{" "}
-              cells)
-            </p>
-            <p>Location: ({territory.x}, {territory.y})</p>
-          </div>
-
-          {territory.product?.logoUrl ? (
-            <img
-              src={territory.product.logoUrl}
-              alt={territory.product.name}
-              className="h-12 w-12 rounded-md border object-cover"
-            />
-          ) : null}
-
-          <div className="space-y-2 rounded-md border bg-muted/30 p-3 text-sm">
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">
-                Takeover ({breakdown.takeoverCellCount} cells)
-              </span>
-              <span className="font-medium">
-                {formatPrice(breakdown.takeoverPrice)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">
-                New pixels ({breakdown.emptyCellCount} cells)
-              </span>
-              <span className="font-medium">
-                {formatPrice(breakdown.emptyCellsPrice)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-2 border-t pt-2 font-semibold">
-              <span>Total</span>
-              <span>{formatPrice(breakdown.totalPrice)}</span>
-            </div>
-          </div>
-
-          <Button className="w-full" onClick={handleClaimOrTake}>
-            Take over and expand
-          </Button>
-
-          <Link
-            href="/how-it-works"
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "sm" }),
-              "w-full",
-            )}
-          >
-            How it works
-          </Link>
-        </div>
-      </div>
-    );
   }
 
   if (isTakeover) {

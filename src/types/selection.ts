@@ -3,7 +3,6 @@ import type { TerritoryBounds } from "@/lib/territories";
 export type SelectionType =
   | "AVAILABLE"
   | "EXACT_TERRITORY_MATCH"
-  | "MIXED_SELECTION"
   | "PARTIAL_OVERLAP"
   | "MULTIPLE_OVERLAP"
   | "RESERVED"
@@ -32,21 +31,12 @@ export type ClassifySelectionInput = {
   boardSize?: number;
 };
 
-export type SelectionPriceBreakdown = {
-  takeoverPrice: number;
-  takeoverCellCount: number;
-  emptyCellsPrice: number;
-  emptyCellCount: number;
-  totalPrice: number;
-};
-
 export type ClassifySelectionResult = {
   type: SelectionType;
   matchingTerritory?: SelectionTerritory;
   overlappingTerritoryIds: string[];
   message: string;
   isValidPurchase: boolean;
-  purchaseType?: "claim" | "takeover" | "mixed";
+  purchaseType?: "claim" | "takeover";
   price?: number;
-  priceBreakdown?: SelectionPriceBreakdown;
 };

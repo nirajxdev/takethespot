@@ -1,6 +1,6 @@
 export const CHECKOUT_STORAGE_KEY = "takethespot-checkout";
 
-export type CheckoutPurchaseType = "claim" | "takeover" | "mixed";
+export type CheckoutPurchaseType = "claim" | "takeover";
 
 export type CheckoutProductData = {
   name: string;
@@ -17,14 +17,6 @@ export type CheckoutOccupiedProduct = {
   currentPrice: number;
 };
 
-export type CheckoutPriceBreakdown = {
-  takeoverPrice: number;
-  takeoverCellCount: number;
-  emptyCellsPrice: number;
-  emptyCellCount: number;
-  totalPrice: number;
-};
-
 export type CheckoutState = {
   sessionId: string;
   x: number;
@@ -35,7 +27,6 @@ export type CheckoutState = {
   price: number;
   territoryId?: string;
   occupiedProduct?: CheckoutOccupiedProduct;
-  priceBreakdown?: CheckoutPriceBreakdown;
   productData?: CheckoutProductData;
 };
 
