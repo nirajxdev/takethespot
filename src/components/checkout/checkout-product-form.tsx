@@ -67,7 +67,11 @@ export function CheckoutProductForm() {
   }
 
   const actionLabel =
-    checkout.purchaseType === "takeover" ? "Takeover" : "Claim";
+    checkout.purchaseType === "takeover"
+      ? "Takeover"
+      : checkout.purchaseType === "mixed"
+        ? "Takeover and expansion"
+        : "Claim";
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">

@@ -1,4 +1,8 @@
-import { calculateClaimPrice, getTakeoverPrice } from "@/lib/pricing";
+import {
+  calculateClaimPrice,
+  calculateMixedSelectionPrice,
+  getTakeoverPrice,
+} from "@/lib/pricing";
 import type { TerritoryBounds } from "@/lib/territories";
 import type {
   ClassifySelectionInput,
@@ -27,6 +31,18 @@ export function isExactMatch(a: TerritoryBounds, b: TerritoryBounds): boolean {
     a.y === b.y &&
     a.width === b.width &&
     a.height === b.height
+  );
+}
+
+export function containsTerritory(
+  selection: TerritoryBounds,
+  territory: TerritoryBounds,
+): boolean {
+  return (
+    territory.x >= selection.x &&
+    territory.y >= selection.y &&
+    territory.x + territory.width <= selection.x + selection.width &&
+    territory.y + territory.height <= selection.y + selection.height
   );
 }
 
@@ -101,6 +117,7 @@ export function classifySelection(
   }
 
   const claimPrice = calculateClaimPrice(width, height);
+  const selectionArea = width * height;
 
   if (overlappingTerritories.length === 0) {
     return {
@@ -139,6 +156,44 @@ export function classifySelection(
         purchaseType: "claim",
         price: territory.currentPrice ?? claimPrice,
       };
+    }
+
+    if (
+      territory.status === "OWNED" &&
+      containsTerritory(selection, territory)
+    ) {
+      const territoryArea = territory.width * territory.height;
+      const extraCells = selectionArea - territoryArea;
+
+      if (extraCells > 0) {
+        const currentPrice = territory.currentPrice ?? 0;
+        const pricing = calculateMixedSelectionPrice({
+          emptyCells: extraCells,
+          occupiedCells: territoryArea,
+          overlappingTerritory: {
+            currentPrice,
+            width: territory.width,
+            height: territory.height,
+          },
+        });
+
+        return {
+          type: "MIXED_SELECTION",
+          matchingTerritory: territory,
+          overlappingTerritoryIds: overlappingIds,
+          message: "Take over this spot and claim the extra empty cells.",
+          isValidPurchase: true,
+          purchaseType: "mixed",
+          price: pricing.total,
+          priceBreakdown: {
+            takeoverPrice: pricing.takeoverPrice,
+            takeoverCellCount: territoryArea,
+            emptyCellsPrice: pricing.emptyCellsPrice,
+            emptyCellCount: extraCells,
+            totalPrice: pricing.total,
+          },
+        };
+      }
     }
 
     return invalidResult(

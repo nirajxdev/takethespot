@@ -201,10 +201,35 @@ export function BoardCanvas({
         height: activeBounds.height,
         territories: selectionTerritories,
       })
-    : null;
+    : selectionOverlay?.bounds
+      ? classifySelection({
+          x: selectionOverlay.bounds.x,
+          y: selectionOverlay.bounds.y,
+          width: selectionOverlay.bounds.width,
+          height: selectionOverlay.bounds.height,
+          territories: selectionTerritories,
+        })
+      : null;
   const overlayValid = activeBounds
     ? activeClassification?.isValidPurchase ?? false
     : (selectionOverlay?.isValid ?? true);
+  const isMixedSelection = activeClassification?.type === "MIXED_SELECTION";
+
+  const overlayFill = !overlayValid
+    ? "oklch(0.75 0.15 25 / 0.35)"
+    : isMixedSelection
+      ? "oklch(0.88 0.14 75 / 0.4)"
+      : "oklch(0.85 0.12 145 / 0.35)";
+  const overlayStroke = !overlayValid
+    ? "oklch(0.55 0.2 25)"
+    : isMixedSelection
+      ? "oklch(0.62 0.18 75)"
+      : "oklch(0.5 0.18 145)";
+  const overlayTextFill = !overlayValid
+    ? "oklch(0.45 0.18 25)"
+    : isMixedSelection
+      ? "oklch(0.42 0.16 75)"
+      : "oklch(0.35 0.14 145)";
 
   return (
     <div
@@ -398,16 +423,8 @@ export function BoardCanvas({
                 y={overlayBounds.y * CELL_SIZE}
                 width={overlayBounds.width * CELL_SIZE}
                 height={overlayBounds.height * CELL_SIZE}
-                fill={
-                  overlayValid
-                    ? "oklch(0.85 0.12 145 / 0.35)"
-                    : "oklch(0.75 0.15 25 / 0.35)"
-                }
-                stroke={
-                  overlayValid
-                    ? "oklch(0.5 0.18 145)"
-                    : "oklch(0.55 0.2 25)"
-                }
+                fill={overlayFill}
+                stroke={overlayStroke}
                 strokeWidth={2}
                 strokeDasharray={overlayValid ? undefined : "6 4"}
                 rx={2}
@@ -425,7 +442,7 @@ export function BoardCanvas({
                 dominantBaseline="middle"
                 fontSize={11}
                 fontWeight={600}
-                fill={overlayValid ? "oklch(0.35 0.14 145)" : "oklch(0.45 0.18 25)"}
+                fill={overlayTextFill}
                 className="select-none"
               >
                 {dragPreviewLabel(overlayBounds, selectionTerritories)}
