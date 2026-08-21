@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 
+import { formatPrice, MIN_CLAIM_PRICE_CENTS } from "@/lib/pricing";
+
 const MESSAGES = [
+  `Claim spots from ${formatPrice(MIN_CLAIM_PRICE_CENTS)}.`,
   "Click a green highlighted spot to claim it.",
   "Or drag on open grid space to select any rectangle of cells.",
-  "Every spot is up for grabs — claim yours now.",
   "Once it's gone, you'll have to pay more to take it.",
 ];
 

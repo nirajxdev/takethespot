@@ -10,7 +10,7 @@ import {
   saveCheckoutState,
   type CheckoutState,
 } from "@/lib/checkout";
-import { getTakeoverPrice } from "@/lib/pricing";
+import { formatPrice, getTakeoverPrice, MIN_CLAIM_PRICE_CENTS } from "@/lib/pricing";
 import type { BoardTerritory } from "@/lib/mock-territories";
 import type { ClassifySelectionResult } from "@/types/selection";
 
@@ -177,11 +177,13 @@ export function SpotPanel({
           <div className="space-y-1 text-sm">
             <p>
               Current value:{" "}
-              <span className="font-semibold">₹{territory.currentPrice}</span>
+              <span className="font-semibold">
+                {formatPrice(territory.currentPrice)}
+              </span>
             </p>
             <p>
               Take it for{" "}
-              <span className="font-semibold">₹{takeoverPrice}</span>
+              <span className="font-semibold">{formatPrice(takeoverPrice)}</span>
             </p>
           </div>
 
@@ -248,7 +250,15 @@ export function SpotPanel({
         </p>
         <p className="text-sm">
           Price:{" "}
-          <span className="font-semibold text-foreground">₹{price}</span>
+          <span className="font-semibold text-foreground">
+            {formatPrice(price)}
+          </span>
+          {price === MIN_CLAIM_PRICE_CENTS ? (
+            <span className="text-muted-foreground">
+              {" "}
+              · {formatPrice(MIN_CLAIM_PRICE_CENTS)} minimum
+            </span>
+          ) : null}
         </p>
         <div className="rounded-md border border-dashed bg-muted/30 p-3 text-center text-xs text-muted-foreground">
           Estimated logo placement area

@@ -1,6 +1,7 @@
 "use server";
 
 import { requireUser } from "@/lib/auth";
+import { formatPrice } from "@/lib/pricing";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { validateTerritorySelection } from "@/lib/territory-validation";
@@ -99,7 +100,7 @@ export async function createCheckoutOrder(
   if (serverAmount !== input.amount) {
     return {
       success: false,
-      error: `Price updated to ₹${serverAmount}. Please review before paying.`,
+      error: `Price updated to ${formatPrice(serverAmount)}. Please review before paying.`,
     };
   }
 
@@ -140,7 +141,7 @@ export async function finalizeCheckoutPurchase(
   if (serverAmount !== input.amount) {
     return {
       success: false,
-      error: `Price updated to ₹${serverAmount}. Please return to the board and try again.`,
+      error: `Price updated to ${formatPrice(serverAmount)}. Please return to the board and try again.`,
     };
   }
 

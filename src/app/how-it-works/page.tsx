@@ -2,7 +2,13 @@ import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { PRICE_PER_CELL, TAKEOVER_MULTIPLIER } from "@/lib/pricing";
+import {
+  calculateClaimPrice,
+  formatPrice,
+  MIN_CLAIM_PRICE_CENTS,
+  PRICE_PER_CELL_CENTS,
+  TAKEOVER_MULTIPLIER,
+} from "@/lib/pricing";
 
 export default function HowItWorksPage() {
   return (
@@ -26,16 +32,24 @@ export default function HowItWorksPage() {
           <h2 className="text-lg font-semibold">2. Claim or take a spot</h2>
           <p className="mt-2 text-muted-foreground">
             Drag on empty grid space to select any rectangle of available cells,
-            or click a highlighted open spot. Pricing is ₹{PRICE_PER_CELL} per
-            cell (width × height). Occupied spots require a takeover payment —
-            typically {TAKEOVER_MULTIPLIER}× the current value.
+            or click a highlighted open spot. Claims start at{" "}
+            {formatPrice(MIN_CLAIM_PRICE_CENTS)} — larger territories scale at{" "}
+            {formatPrice(PRICE_PER_CELL_CENTS)} per cell. Occupied spots require a
+            takeover payment — typically {TAKEOVER_MULTIPLIER}× the current value.
           </p>
           <div className="mt-4 rounded-lg border p-4 text-sm">
-            <p className="font-medium">Per-cell pricing</p>
-            <p className="mt-1 text-muted-foreground">
-              Example: a 5×5 selection = 25 cells = ₹
-              {5 * 5 * PRICE_PER_CELL}
-            </p>
+            <p className="font-medium">Pricing examples</p>
+            <ul className="mt-2 space-y-1 text-muted-foreground">
+              <li>
+                1×1 cell = {formatPrice(calculateClaimPrice(1, 1))} (minimum)
+              </li>
+              <li>
+                5×5 territory = {formatPrice(calculateClaimPrice(5, 5))}
+              </li>
+              <li>
+                15×15 territory = {formatPrice(calculateClaimPrice(15, 15))}
+              </li>
+            </ul>
           </div>
         </li>
         <li>

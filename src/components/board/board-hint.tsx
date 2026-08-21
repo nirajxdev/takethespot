@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { formatPrice, MIN_CLAIM_PRICE_CENTS } from "@/lib/pricing";
+
 const HINT_STORAGE_KEY = "takethespot-board-hint-dismissed";
 
 export function BoardHint() {
@@ -27,9 +29,10 @@ export function BoardHint() {
         How to claim
       </p>
       <p className="mt-2 text-sm leading-snug text-emerald-900">
-        Click a <span className="font-semibold">green highlighted spot</span> to
-        claim it, drag on open grid space to size a territory, or click an owned
-        spot to take it over.
+        Claim spots from {formatPrice(MIN_CLAIM_PRICE_CENTS)}. Click a{" "}
+        <span className="font-semibold">green highlighted spot</span> to claim it,
+        drag on open grid space to size a territory, or click an owned spot to
+        take it over.
       </p>
       <button
         type="button"

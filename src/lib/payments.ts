@@ -6,7 +6,7 @@
 export type PaymentIntent = {
   orderId: string;
   amount: number;
-  currency: "INR";
+  currency: "USD";
 };
 
 export async function createPaymentIntent(

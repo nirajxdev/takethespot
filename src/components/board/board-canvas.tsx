@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
 import type { BoardTerritory } from "@/lib/mock-territories";
-import { calculateClaimPrice } from "@/lib/pricing";
+import { calculateClaimPrice, formatPrice } from "@/lib/pricing";
 import { classifySelection } from "@/lib/selection";
 import { BOARD_SIZE } from "@/lib/territories";
 import type { SelectionTerritory } from "@/types/selection";
@@ -98,7 +98,7 @@ function dragPreviewLabel(
   });
   const price =
     result.price ?? calculateClaimPrice(bounds.width, bounds.height);
-  return `${bounds.width}×${bounds.height} (${cellCount} cells) · ₹${price}`;
+  return `${bounds.width}×${bounds.height} (${cellCount} cells) · ${formatPrice(price)}`;
 }
 
 export function BoardCanvas({
@@ -370,7 +370,7 @@ export function BoardCanvas({
                         fill="oklch(0.45 0.1 145)"
                         className="pointer-events-none select-none"
                       >
-                        ₹{territory.currentPrice}
+                        {formatPrice(territory.currentPrice)}
                       </text>
                     ) : (
                       <text
@@ -382,7 +382,7 @@ export function BoardCanvas({
                         fill="oklch(0.45 0.1 145)"
                         className="pointer-events-none select-none"
                       >
-                        ₹{territory.currentPrice}
+                        {formatPrice(territory.currentPrice)}
                       </text>
                     )}
                   </>

@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { PRICE_PER_CELL } from "@/lib/pricing";
+import { formatPrice, MIN_CLAIM_PRICE_CENTS, PRICE_PER_CELL_CENTS } from "@/lib/pricing";
 
 export default function ClaimPage() {
   return (
@@ -18,15 +18,18 @@ export default function ClaimPage() {
         <CardHeader>
           <CardTitle>Claim territory</CardTitle>
           <CardDescription>
-            Select any rectangle of empty cells on the board. Pricing is ₹
-            {PRICE_PER_CELL} per cell.
+            Select any rectangle of empty cells on the board. Claims start at{" "}
+            {formatPrice(MIN_CLAIM_PRICE_CENTS)}; larger territories scale at{" "}
+            {formatPrice(PRICE_PER_CELL_CENTS)} per cell.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="rounded-lg border p-4">
-            <p className="font-medium">Per-cell pricing</p>
+            <p className="font-medium">From {formatPrice(MIN_CLAIM_PRICE_CENTS)}</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Drag to select any size — price = width × height × ₹{PRICE_PER_CELL}
+              Small spots cost {formatPrice(MIN_CLAIM_PRICE_CENTS)} minimum. Drag
+              to select any size — price = max({formatPrice(MIN_CLAIM_PRICE_CENTS)},
+              width × height × {formatPrice(PRICE_PER_CELL_CENTS)}).
             </p>
           </div>
           <Link

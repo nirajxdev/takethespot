@@ -11,6 +11,7 @@ import {
   getCheckoutState,
   type CheckoutState,
 } from "@/lib/checkout";
+import { formatPrice } from "@/lib/pricing";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -54,7 +55,7 @@ export function CheckoutPayment() {
         result.data.updatedPrice !== state.price
       ) {
         setError(
-          `Price updated to ₹${result.data.updatedPrice}. Return to the board to confirm before paying.`,
+          `Price updated to ${formatPrice(result.data.updatedPrice)}. Return to the board to confirm before paying.`,
         );
       }
     });
@@ -121,7 +122,7 @@ export function CheckoutPayment() {
 
     clearCheckoutState();
     setSuccess(
-      `Order ${orderResult.data.orderId} created for ₹${orderResult.data.amount}. Payment integration ships in Phase 5 — your spot will activate after payment.`,
+      `Order ${orderResult.data.orderId} created for ${formatPrice(orderResult.data.amount)}. Payment integration ships in Phase 5 — your spot will activate after payment.`,
     );
   }
 
@@ -135,7 +136,7 @@ export function CheckoutPayment() {
         </p>
         <h1 className="mt-2 text-2xl font-bold tracking-tight">Payment</h1>
         <p className="mt-2 text-muted-foreground">
-          {checkout.width}×{checkout.height} territory — ₹{checkout.price}
+          {checkout.width}×{checkout.height} territory — {formatPrice(checkout.price)}
         </p>
       </div>
 
@@ -181,7 +182,9 @@ export function CheckoutPayment() {
                   {checkout.productData.description}
                 </p>
               ) : null}
-              <p className="mt-3 font-semibold">Total: ₹{checkout.price}</p>
+              <p className="mt-3 font-semibold">
+                Total: {formatPrice(checkout.price)}
+              </p>
             </div>
 
             {!isSignedIn ? (
@@ -210,7 +213,7 @@ export function CheckoutPayment() {
                 </p>
                 <div className="flex gap-3">
                   <Button onClick={handlePayment} disabled={isProcessing}>
-                    {isProcessing ? "Processing…" : `Pay ₹${checkout.price}`}
+                    {isProcessing ? "Processing…" : `Pay ${formatPrice(checkout.price)}`}
                   </Button>
                   <Link
                     href="/checkout"

@@ -8,6 +8,7 @@ import {
   updateCheckoutProductData,
   type CheckoutState,
 } from "@/lib/checkout";
+import { formatPrice } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,7 +80,7 @@ export function CheckoutProductForm() {
         </h1>
         <p className="mt-2 text-muted-foreground">
           {actionLabel}ing a {checkout.width}×{checkout.height} territory at (
-          {checkout.x}, {checkout.y}) — ₹{checkout.price}
+          {checkout.x}, {checkout.y}) — {formatPrice(checkout.price)}
         </p>
       </div>
 

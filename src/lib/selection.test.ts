@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  calculateClaimPrice,
+  MIN_CLAIM_PRICE_CENTS,
+} from "@/lib/pricing";
 import { classifySelection } from "@/lib/selection";
 import type { SelectionTerritory } from "@/types/selection";
 
@@ -9,7 +13,7 @@ const ownedTerritory: SelectionTerritory = {
   y: 10,
   width: 10,
   height: 10,
-  currentPrice: 100,
+  currentPrice: calculateClaimPrice(10, 10),
   status: "OWNED",
 };
 
@@ -19,7 +23,7 @@ const availableTerritory: SelectionTerritory = {
   y: 8,
   width: 5,
   height: 5,
-  currentPrice: 25,
+  currentPrice: calculateClaimPrice(5, 5),
   status: "AVAILABLE",
 };
 
@@ -29,7 +33,7 @@ const secondOwned: SelectionTerritory = {
   y: 15,
   width: 2,
   height: 2,
-  currentPrice: 4,
+  currentPrice: calculateClaimPrice(2, 2),
   status: "OWNED",
 };
 
@@ -39,7 +43,7 @@ const reservedTerritory: SelectionTerritory = {
   y: 12,
   width: 10,
   height: 10,
-  currentPrice: 100,
+  currentPrice: calculateClaimPrice(10, 10),
   status: "RESERVED",
 };
 
@@ -56,7 +60,7 @@ describe("classifySelection", () => {
     expect(result.type).toBe("AVAILABLE");
     expect(result.isValidPurchase).toBe(true);
     expect(result.purchaseType).toBe("claim");
-    expect(result.price).toBe(4);
+    expect(result.price).toBe(MIN_CLAIM_PRICE_CENTS);
   });
 
   it("classifies custom-sized available space as AVAILABLE", () => {
@@ -71,7 +75,7 @@ describe("classifySelection", () => {
     expect(result.type).toBe("AVAILABLE");
     expect(result.isValidPurchase).toBe(true);
     expect(result.purchaseType).toBe("claim");
-    expect(result.price).toBe(12);
+    expect(result.price).toBe(MIN_CLAIM_PRICE_CENTS);
   });
 
   it("classifies exact owned match as EXACT_TERRITORY_MATCH takeover", () => {
@@ -87,7 +91,7 @@ describe("classifySelection", () => {
     expect(result.isValidPurchase).toBe(true);
     expect(result.purchaseType).toBe("takeover");
     expect(result.matchingTerritory?.id).toBe("owned-1");
-    expect(result.price).toBe(150);
+    expect(result.price).toBe(Math.ceil(calculateClaimPrice(10, 10) * 1.5));
   });
 
   it("classifies exact available match as AVAILABLE claim", () => {
@@ -103,7 +107,7 @@ describe("classifySelection", () => {
     expect(result.isValidPurchase).toBe(true);
     expect(result.purchaseType).toBe("claim");
     expect(result.matchingTerritory?.id).toBe("avail-1");
-    expect(result.price).toBe(25);
+    expect(result.price).toBe(calculateClaimPrice(5, 5));
   });
 
   it("rejects partial overlap with one territory", () => {
@@ -243,6 +247,24 @@ describe("classifySelection", () => {
 
     expect(result.type).toBe("AVAILABLE");
     expect(result.isValidPurchase).toBe(true);
-    expect(result.price).toBe(1);
+    expect(result.price).toBe(MIN_CLAIM_PRICE_CENTS);
+  });
+
+  it("enforces $1 minimum for small 2x2 selections", () => {
+    const result = classifySelection({
+      x: 0,
+      y: 0,
+      width: 2,
+      height: 2,
+      territories: [],
+    });
+
+    expect(result.price).toBe(MIN_CLAIM_PRICE_CENTS);
+    expect(calculateClaimPrice(2, 2)).toBe(MIN_CLAIM_PRICE_CENTS);
+  });
+
+  it("scales per-cell above the minimum for large selections", () => {
+    expect(calculateClaimPrice(15, 15)).toBe(225);
+    expect(calculateClaimPrice(20, 20)).toBe(400);
   });
 });

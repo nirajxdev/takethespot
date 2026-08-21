@@ -1,4 +1,5 @@
 import { getMockTerritories } from "@/lib/mock-territories";
+import { formatPrice } from "@/lib/pricing";
 import { prisma } from "@/lib/prisma";
 import { classifySelection } from "@/lib/selection";
 import type {
@@ -161,7 +162,7 @@ export async function validateTerritorySelection(input: {
     return {
       ...result,
       priceMismatch: true,
-      message: `Price updated to ₹${result.price}. Ownership or value changed.`,
+      message: `Price updated to ${formatPrice(result.price)}. Ownership or value changed.`,
     };
   }
 
