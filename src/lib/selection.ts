@@ -1,8 +1,4 @@
-import {
-  TERRITORY_SIZES,
-  getTakeoverPrice,
-  type TerritorySizeKey,
-} from "@/lib/pricing";
+import { calculateClaimPrice, getTakeoverPrice } from "@/lib/pricing";
 import type { TerritoryBounds } from "@/lib/territories";
 import type {
   ClassifySelectionInput,
@@ -11,7 +7,7 @@ import type {
 } from "@/types/selection";
 
 export const BOARD_SIZE = 100;
-export const MAX_TERRITORY_DIMENSION = 10;
+export const MAX_TERRITORY_DIMENSION = 20;
 
 export function rectanglesOverlap(
   a: TerritoryBounds,
@@ -32,16 +28,6 @@ export function isExactMatch(a: TerritoryBounds, b: TerritoryBounds): boolean {
     a.width === b.width &&
     a.height === b.height
   );
-}
-
-export function inferSizeKey(
-  width: number,
-  height: number,
-): TerritorySizeKey | undefined {
-  if (width === 2 && height === 2) return "small";
-  if (width === 5 && height === 5) return "medium";
-  if (width === 10 && height === 10) return "large";
-  return undefined;
 }
 
 function invalidResult(
@@ -90,15 +76,7 @@ export function classifySelection(
   ) {
     return invalidResult(
       "MAX_SIZE_EXCEEDED",
-      "Territory size cannot exceed 10×10 cells.",
-    );
-  }
-
-  const sizeKey = inferSizeKey(width, height);
-  if (!sizeKey) {
-    return invalidResult(
-      "MAX_SIZE_EXCEEDED",
-      "Territories must be 2×2, 5×5, or 10×10.",
+      `Territory size cannot exceed ${MAX_TERRITORY_DIMENSION}×${MAX_TERRITORY_DIMENSION} cells.`,
     );
   }
 
@@ -122,6 +100,8 @@ export function classifySelection(
     );
   }
 
+  const claimPrice = calculateClaimPrice(width, height);
+
   if (overlappingTerritories.length === 0) {
     return {
       type: "AVAILABLE",
@@ -129,7 +109,7 @@ export function classifySelection(
       message: "This spot is available to claim.",
       isValidPurchase: true,
       purchaseType: "claim",
-      price: TERRITORY_SIZES[sizeKey].price,
+      price: claimPrice,
     };
   }
 
@@ -157,8 +137,7 @@ export function classifySelection(
         message: "This spot is available to claim.",
         isValidPurchase: true,
         purchaseType: "claim",
-        price:
-          territory.currentPrice ?? TERRITORY_SIZES[sizeKey].price,
+        price: territory.currentPrice ?? claimPrice,
       };
     }
 

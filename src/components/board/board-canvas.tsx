@@ -3,9 +3,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
 import type { BoardTerritory } from "@/lib/mock-territories";
-import { inferSizeKey } from "@/lib/selection";
-import { TERRITORY_SIZES } from "@/lib/pricing";
+import { calculateClaimPrice } from "@/lib/pricing";
+import { classifySelection } from "@/lib/selection";
 import { BOARD_SIZE } from "@/lib/territories";
+import type { SelectionTerritory } from "@/types/selection";
 
 const CELL_SIZE = 10;
 const BOARD_PADDING = 32;
@@ -33,6 +34,20 @@ type DragState = {
   endCellX: number;
   endCellY: number;
 };
+
+function toSelectionTerritories(
+  territories: BoardTerritory[],
+): SelectionTerritory[] {
+  return territories.map((t) => ({
+    id: t.id,
+    x: t.x,
+    y: t.y,
+    width: t.width,
+    height: t.height,
+    currentPrice: t.currentPrice,
+    status: t.status,
+  }));
+}
 
 function cellFromEvent(
   svg: SVGSVGElement,
@@ -69,12 +84,21 @@ function boundsFromDrag(drag: DragState): SelectionBounds {
   return { x, y, width, height };
 }
 
-function dragPreviewLabel(bounds: SelectionBounds): string | undefined {
-  const sizeKey = inferSizeKey(bounds.width, bounds.height);
-  if (!sizeKey) {
-    return `${bounds.width}×${bounds.height}`;
-  }
-  return `${bounds.width}×${bounds.height} · ₹${TERRITORY_SIZES[sizeKey].price}`;
+function dragPreviewLabel(
+  bounds: SelectionBounds,
+  territories: SelectionTerritory[],
+): string {
+  const cellCount = bounds.width * bounds.height;
+  const result = classifySelection({
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    territories,
+  });
+  const price =
+    result.price ?? calculateClaimPrice(bounds.width, bounds.height);
+  return `${bounds.width}×${bounds.height} (${cellCount} cells) · ₹${price}`;
 }
 
 export function BoardCanvas({
@@ -89,6 +113,7 @@ export function BoardCanvas({
   const [isDragging, setIsDragging] = useState(false);
   const [dragState, setDragState] = useState<DragState | null>(null);
 
+  const selectionTerritories = toSelectionTerritories(territories);
   const boardWidth = BOARD_SIZE * CELL_SIZE;
   const boardHeight = BOARD_SIZE * CELL_SIZE;
 
@@ -163,20 +188,23 @@ export function BoardCanvas({
     const bounds = boundsFromDrag(dragState);
     setIsDragging(false);
     setDragState(null);
-
-    if (bounds.width === 1 && bounds.height === 1) {
-      onSelectionComplete({ x: bounds.x, y: bounds.y, width: 2, height: 2 });
-      return;
-    }
-
     onSelectionComplete(bounds);
   }
 
   const activeBounds = dragState ? boundsFromDrag(dragState) : null;
   const overlayBounds = activeBounds ?? selectionOverlay?.bounds ?? null;
+  const activeClassification = activeBounds
+    ? classifySelection({
+        x: activeBounds.x,
+        y: activeBounds.y,
+        width: activeBounds.width,
+        height: activeBounds.height,
+        territories: selectionTerritories,
+      })
+    : null;
   const overlayValid = activeBounds
-    ? inferSizeKey(activeBounds.width, activeBounds.height) !== undefined
-    : selectionOverlay?.isValid ?? true;
+    ? activeClassification?.isValidPurchase ?? false
+    : (selectionOverlay?.isValid ?? true);
 
   return (
     <div
@@ -400,7 +428,7 @@ export function BoardCanvas({
                 fill={overlayValid ? "oklch(0.35 0.14 145)" : "oklch(0.45 0.18 25)"}
                 className="select-none"
               >
-                {dragPreviewLabel(overlayBounds)}
+                {dragPreviewLabel(overlayBounds, selectionTerritories)}
               </text>
             </g>
           ) : null}

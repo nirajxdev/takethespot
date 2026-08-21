@@ -1,5 +1,3 @@
-import type { TerritorySizeKey } from "@/lib/pricing";
-
 export const CHECKOUT_STORAGE_KEY = "takethespot-checkout";
 
 export type CheckoutPurchaseType = "claim" | "takeover";
@@ -25,7 +23,6 @@ export type CheckoutState = {
   y: number;
   width: number;
   height: number;
-  territorySizeKey?: TerritorySizeKey;
   purchaseType: CheckoutPurchaseType;
   price: number;
   territoryId?: string;

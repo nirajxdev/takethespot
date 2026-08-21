@@ -1,5 +1,4 @@
-import type { TerritorySizeKey } from "@/lib/pricing";
-import { getTerritoryDimensions, getTerritoryPrice } from "@/lib/pricing";
+import { calculateClaimPrice } from "@/lib/pricing";
 
 export type TerritoryBounds = {
   x: number;
@@ -8,15 +7,17 @@ export type TerritoryBounds = {
   height: number;
 };
 
-export function createTerritoryFromSize(
-  size: TerritorySizeKey,
-  position: Pick<TerritoryBounds, "x" | "y">,
+export function createTerritoryFromBounds(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
 ) {
-  const { width, height } = getTerritoryDimensions(size);
-  const price = getTerritoryPrice(size);
+  const price = calculateClaimPrice(width, height);
 
   return {
-    ...position,
+    x,
+    y,
     width,
     height,
     currentPrice: price,

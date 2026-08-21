@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { TERRITORY_SIZES, TAKEOVER_MULTIPLIER } from "@/lib/pricing";
+import { PRICE_PER_CELL, TAKEOVER_MULTIPLIER } from "@/lib/pricing";
 
 export default function HowItWorksPage() {
   return (
@@ -25,19 +25,17 @@ export default function HowItWorksPage() {
         <li>
           <h2 className="text-lg font-semibold">2. Claim or take a spot</h2>
           <p className="mt-2 text-muted-foreground">
-            Available spots can be claimed at the listed price. Occupied spots
-            require a takeover payment — typically {TAKEOVER_MULTIPLIER}× the
-            current value.
+            Drag on empty grid space to select any rectangle of available cells,
+            or click a highlighted open spot. Pricing is ₹{PRICE_PER_CELL} per
+            cell (width × height). Occupied spots require a takeover payment —
+            typically {TAKEOVER_MULTIPLIER}× the current value.
           </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            {Object.entries(TERRITORY_SIZES).map(([key, size]) => (
-              <div key={key} className="rounded-lg border p-4 text-sm">
-                <p className="font-medium capitalize">{key}</p>
-                <p className="mt-1 text-muted-foreground">
-                  {size.width}×{size.height} — ₹{size.price}
-                </p>
-              </div>
-            ))}
+          <div className="mt-4 rounded-lg border p-4 text-sm">
+            <p className="font-medium">Per-cell pricing</p>
+            <p className="mt-1 text-muted-foreground">
+              Example: a 5×5 selection = 25 cells = ₹
+              {5 * 5 * PRICE_PER_CELL}
+            </p>
           </div>
         </li>
         <li>

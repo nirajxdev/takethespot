@@ -3,15 +3,6 @@ import {
   getMockTerritories,
   type BoardTerritory,
 } from "@/lib/mock-territories";
-import type { TerritorySizeKey } from "@/lib/pricing";
-import { inferSizeKey } from "@/lib/selection";
-
-function inferSizeKeyFromDimensions(
-  width: number,
-  height: number,
-): TerritorySizeKey | undefined {
-  return inferSizeKey(width, height);
-}
 
 export async function getBoardTerritories(): Promise<BoardTerritory[]> {
   try {
@@ -43,7 +34,6 @@ export async function getBoardTerritories(): Promise<BoardTerritory[]> {
       height: t.height,
       currentPrice: t.currentPrice,
       status: t.status === "OWNED" ? "OWNED" : "AVAILABLE",
-      sizeKey: inferSizeKeyFromDimensions(t.width, t.height),
       product: t.product
         ? {
             name: t.product.name,

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 const MESSAGES = [
   "Click a green highlighted spot to claim it.",
-  "Or click any open area to claim a 2×2 territory.",
+  "Or drag on open grid space to select any rectangle of cells.",
   "Every spot is up for grabs — claim yours now.",
   "Once it's gone, you'll have to pay more to take it.",
 ];

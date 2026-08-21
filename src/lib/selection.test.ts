@@ -9,7 +9,7 @@ const ownedTerritory: SelectionTerritory = {
   y: 10,
   width: 10,
   height: 10,
-  currentPrice: 799,
+  currentPrice: 100,
   status: "OWNED",
 };
 
@@ -19,7 +19,7 @@ const availableTerritory: SelectionTerritory = {
   y: 8,
   width: 5,
   height: 5,
-  currentPrice: 299,
+  currentPrice: 25,
   status: "AVAILABLE",
 };
 
@@ -29,7 +29,7 @@ const secondOwned: SelectionTerritory = {
   y: 15,
   width: 2,
   height: 2,
-  currentPrice: 99,
+  currentPrice: 4,
   status: "OWNED",
 };
 
@@ -39,7 +39,7 @@ const reservedTerritory: SelectionTerritory = {
   y: 12,
   width: 10,
   height: 10,
-  currentPrice: 799,
+  currentPrice: 100,
   status: "RESERVED",
 };
 
@@ -56,7 +56,22 @@ describe("classifySelection", () => {
     expect(result.type).toBe("AVAILABLE");
     expect(result.isValidPurchase).toBe(true);
     expect(result.purchaseType).toBe("claim");
-    expect(result.price).toBe(99);
+    expect(result.price).toBe(4);
+  });
+
+  it("classifies custom-sized available space as AVAILABLE", () => {
+    const result = classifySelection({
+      x: 0,
+      y: 0,
+      width: 3,
+      height: 4,
+      territories: [ownedTerritory, availableTerritory, secondOwned],
+    });
+
+    expect(result.type).toBe("AVAILABLE");
+    expect(result.isValidPurchase).toBe(true);
+    expect(result.purchaseType).toBe("claim");
+    expect(result.price).toBe(12);
   });
 
   it("classifies exact owned match as EXACT_TERRITORY_MATCH takeover", () => {
@@ -72,7 +87,7 @@ describe("classifySelection", () => {
     expect(result.isValidPurchase).toBe(true);
     expect(result.purchaseType).toBe("takeover");
     expect(result.matchingTerritory?.id).toBe("owned-1");
-    expect(result.price).toBe(1199);
+    expect(result.price).toBe(150);
   });
 
   it("classifies exact available match as AVAILABLE claim", () => {
@@ -88,7 +103,7 @@ describe("classifySelection", () => {
     expect(result.isValidPurchase).toBe(true);
     expect(result.purchaseType).toBe("claim");
     expect(result.matchingTerritory?.id).toBe("avail-1");
-    expect(result.price).toBe(299);
+    expect(result.price).toBe(25);
   });
 
   it("rejects partial overlap with one territory", () => {
@@ -125,7 +140,7 @@ describe("classifySelection", () => {
       y: 10,
       width: 5,
       height: 5,
-      currentPrice: 299,
+      currentPrice: 25,
       status: "OWNED",
     };
     const territoryB: SelectionTerritory = {
@@ -134,7 +149,7 @@ describe("classifySelection", () => {
       y: 12,
       width: 5,
       height: 5,
-      currentPrice: 299,
+      currentPrice: 25,
       status: "OWNED",
     };
 
@@ -204,16 +219,30 @@ describe("classifySelection", () => {
     expect(result.isValidPurchase).toBe(false);
   });
 
-  it("rejects non-standard territory dimensions", () => {
+  it("rejects selections larger than the max dimension", () => {
     const result = classifySelection({
       x: 0,
       y: 0,
-      width: 3,
-      height: 3,
+      width: 21,
+      height: 10,
       territories: [],
     });
 
     expect(result.type).toBe("MAX_SIZE_EXCEEDED");
     expect(result.isValidPurchase).toBe(false);
+  });
+
+  it("allows 1x1 selections on empty space", () => {
+    const result = classifySelection({
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      territories: [],
+    });
+
+    expect(result.type).toBe("AVAILABLE");
+    expect(result.isValidPurchase).toBe(true);
+    expect(result.price).toBe(1);
   });
 });

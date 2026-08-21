@@ -9,14 +9,10 @@ import {
   SpotPanel,
 } from "@/components/board/spot-panel";
 import { UrgencyPanel } from "@/components/board/urgency-panel";
-import {
-  createTerritoryFromSize,
-  snapClaimPosition,
-} from "@/lib/territories";
+import { snapClaimPosition } from "@/lib/territories";
 import type { BoardTerritory } from "@/lib/mock-territories";
 import { classifySelection } from "@/lib/selection";
 import type { ClassifySelectionResult } from "@/types/selection";
-import type { TerritorySizeKey } from "@/lib/pricing";
 
 type BoardViewProps = {
   territories: BoardTerritory[];
@@ -47,7 +43,6 @@ function territoryFromClassification(
     if (existing) return existing;
   }
 
-  const sizeKey = inferSizeKeyFromBounds(bounds);
   return {
     id: `claim-${bounds.x}-${bounds.y}-${bounds.width}x${bounds.height}`,
     x: bounds.x,
@@ -56,15 +51,7 @@ function territoryFromClassification(
     height: bounds.height,
     currentPrice: classification.price ?? 0,
     status: "AVAILABLE",
-    sizeKey,
   };
-}
-
-function inferSizeKeyFromBounds(bounds: SelectionBounds): TerritorySizeKey | undefined {
-  if (bounds.width === 2 && bounds.height === 2) return "small";
-  if (bounds.width === 5 && bounds.height === 5) return "medium";
-  if (bounds.width === 10 && bounds.height === 10) return "large";
-  return undefined;
 }
 
 export function BoardView({ territories }: BoardViewProps) {
@@ -83,13 +70,10 @@ export function BoardView({ territories }: BoardViewProps) {
   );
 
   function classifyBounds(bounds: SelectionBounds): ClassifySelectionResult {
-    const snapped =
-      bounds.width === 2 && bounds.height === 2
-        ? {
-            ...bounds,
-            ...snapClaimPosition(bounds.x, bounds.y, bounds.width, bounds.height),
-          }
-        : bounds;
+    const snapped = {
+      ...bounds,
+      ...snapClaimPosition(bounds.x, bounds.y, bounds.width, bounds.height),
+    };
 
     return classifySelection({
       x: snapped.x,
@@ -135,48 +119,6 @@ export function BoardView({ territories }: BoardViewProps) {
     }
   }
 
-  function handleSizeChange(sizeKey: TerritorySizeKey) {
-    if (!selectionBounds || !selectedTerritory) return;
-
-    const { width, height, currentPrice } = createTerritoryFromSize(sizeKey, {
-      x: selectionBounds.x,
-      y: selectionBounds.y,
-    });
-    const { x, y } = snapClaimPosition(
-      selectionBounds.x,
-      selectionBounds.y,
-      width,
-      height,
-    );
-
-    const bounds: SelectionBounds = { x, y, width, height };
-    const result = classifySelection({
-      x,
-      y,
-      width,
-      height,
-      territories: selectionTerritories,
-    });
-
-    if (!result.isValidPurchase) {
-      applyClassification(bounds, result);
-      return;
-    }
-
-    setSelectionBounds(bounds);
-    setClassification(result);
-    setSelectedTerritory({
-      id: `claim-${x}-${y}-${sizeKey}`,
-      x,
-      y,
-      width,
-      height,
-      currentPrice,
-      status: "AVAILABLE",
-      sizeKey,
-    });
-  }
-
   function handleViewOverlappingSpot() {
     if (!classification || classification.overlappingTerritoryIds.length === 0) {
       return;
@@ -194,9 +136,6 @@ export function BoardView({ territories }: BoardViewProps) {
     setClassification(null);
     setSelectionBounds(null);
   }
-
-  const isCustomClaim =
-    selectedTerritory?.id.startsWith("claim-") ?? false;
 
   const selectionOverlay =
     selectionBounds && classification
@@ -234,29 +173,6 @@ export function BoardView({ territories }: BoardViewProps) {
             territory={selectedTerritory}
             classification={classification}
             onClose={clearSelection}
-            isCustomClaim={isCustomClaim}
-            onSizeChange={isCustomClaim ? handleSizeChange : undefined}
-            canPlaceSize={(sizeKey) => {
-              if (!selectionBounds) return false;
-              const { width, height } = createTerritoryFromSize(sizeKey, {
-                x: selectionBounds.x,
-                y: selectionBounds.y,
-              });
-              const { x, y } = snapClaimPosition(
-                selectionBounds.x,
-                selectionBounds.y,
-                width,
-                height,
-              );
-              const result = classifySelection({
-                x,
-                y,
-                width,
-                height,
-                territories: selectionTerritories,
-              });
-              return result.isValidPurchase;
-            }}
           />
         ) : null}
       </div>

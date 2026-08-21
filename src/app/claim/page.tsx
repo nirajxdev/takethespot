@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { TERRITORY_SIZES } from "@/lib/pricing";
+import { PRICE_PER_CELL } from "@/lib/pricing";
 
 export default function ClaimPage() {
   return (
@@ -18,26 +18,22 @@ export default function ClaimPage() {
         <CardHeader>
           <CardTitle>Claim territory</CardTitle>
           <CardDescription>
-            Select a size and position on the board. Payment and claiming logic
-            ship in Phase 2.
+            Select any rectangle of empty cells on the board. Pricing is ₹
+            {PRICE_PER_CELL} per cell.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-3">
-            {Object.entries(TERRITORY_SIZES).map(([key, size]) => (
-              <div key={key} className="rounded-lg border p-4">
-                <p className="font-medium capitalize">{key}</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {size.width}×{size.height} — ₹{size.price}
-                </p>
-              </div>
-            ))}
+          <div className="rounded-lg border p-4">
+            <p className="font-medium">Per-cell pricing</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Drag to select any size — price = width × height × ₹{PRICE_PER_CELL}
+            </p>
           </div>
           <Link
-            href="/dashboard/products/new"
+            href="/"
             className={cn(buttonVariants())}
           >
-            Create a product first
+            Go to the board
           </Link>
         </CardContent>
       </Card>
