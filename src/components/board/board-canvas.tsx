@@ -9,7 +9,7 @@ import { BOARD_SIZE } from "@/lib/territories";
 import type { SelectionTerritory } from "@/types/selection";
 
 const CELL_SIZE = 10;
-const BOARD_PADDING = 32;
+const BOARD_PADDING = 4;
 
 export type SelectionBounds = {
   x: number;
@@ -209,7 +209,7 @@ export function BoardCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative flex min-h-0 flex-1 w-full items-center justify-center overflow-hidden bg-neutral-100/80"
+      className="relative flex min-h-0 flex-1 w-full items-center justify-center overflow-hidden"
     >
       {displaySize.width > 0 && displaySize.height > 0 ? (
         <svg
@@ -217,7 +217,7 @@ export function BoardCanvas({
           viewBox={`0 0 ${boardWidth} ${boardHeight}`}
           width={displaySize.width}
           height={displaySize.height}
-          className="shrink-0 cursor-crosshair rounded-lg border-2 border-neutral-300 bg-white shadow-lg touch-none"
+          className="shrink-0 cursor-crosshair bg-white touch-none"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}

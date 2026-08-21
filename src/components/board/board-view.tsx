@@ -146,8 +146,8 @@ export function BoardView({ territories }: BoardViewProps) {
       : null;
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col p-3 sm:p-4">
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 shadow-md">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden border border-neutral-200 bg-white">
         <BoardCanvas
           territories={territories}
           onSelectTerritory={handleTerritorySelect}

@@ -15,9 +15,9 @@ export async function Navbar() {
 
   return (
     <header className="border-b bg-background/80 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="text-lg font-semibold tracking-tight">
+      <div className="mx-auto flex h-12 max-w-6xl items-center justify-between px-4 sm:px-6">
+        <div className="flex items-center gap-6">
+          <Link href="/" className="text-base font-semibold tracking-tight">
             TakeTheSpot
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium sm:flex">
