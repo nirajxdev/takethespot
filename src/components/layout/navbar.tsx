@@ -51,7 +51,7 @@ export async function Navbar() {
               Dashboard
             </Link>
           ) : null}
-          <AuthMenu userId={userId} />
+          <AuthMenu />
         </div>
       </div>
     </header>

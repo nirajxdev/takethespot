@@ -1,23 +1,30 @@
 "use client";
 
-import Link from "next/link";
-import { UserButton } from "@clerk/nextjs";
+import {
+  Show,
+  SignInButton,
+  SignUpButton,
+  UserButton,
+} from "@clerk/nextjs";
 
-type AuthMenuProps = {
-  userId: string | null;
-};
+import { Button } from "@/components/ui/button";
 
-export function AuthMenu({ userId }: AuthMenuProps) {
-  if (userId) {
-    return <UserButton />;
-  }
-
+export function AuthMenu() {
   return (
-    <Link
-      href="/sign-in"
-      className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-    >
-      Sign in
-    </Link>
+    <div className="flex items-center gap-2">
+      <Show when="signed-out">
+        <SignInButton mode="modal">
+          <Button variant="ghost" size="sm">
+            Sign in
+          </Button>
+        </SignInButton>
+        <SignUpButton mode="modal">
+          <Button size="sm">Sign up</Button>
+        </SignUpButton>
+      </Show>
+      <Show when="signed-in">
+        <UserButton />
+      </Show>
+    </div>
   );
 }
