@@ -12,6 +12,16 @@ import AdminPanel from './components/AdminPanel.tsx';
 import { AnimatePresence } from 'motion/react';
 import { Analytics } from '@vercel/analytics/react';
 
+const PENDING_CHECKOUT_KEY = 'tts_dodo_checkout';
+
+type PendingClientCheckout = {
+  checkoutId: string;
+  plotIds: string[];
+  brandName: string;
+  logo: string;
+  websiteUrl: string;
+};
+
 export default function App() {
   const [plots, setPlots] = useState<Plot[]>([]);
   const [config, setConfig] = useState<MarketConfig | null>(null);
@@ -30,6 +40,7 @@ export default function App() {
   const [focusedPlots, setFocusedPlots] = useState<Plot[] | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null);
 
@@ -75,6 +86,11 @@ export default function App() {
     }
   }, []);
 
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 5000);
@@ -87,12 +103,108 @@ export default function App() {
     if (params.get("admin") === "1" || path === "/admin") {
       setIsAdminPanelOpen(true);
     }
+    if (params.get("paid") === "0") {
+      showToast("Checkout was cancelled. No plots were claimed.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }, []);
 
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("paid") !== "1") return;
+
+    const checkoutId = params.get("checkout") || "";
+    let stored: PendingClientCheckout | null = null;
+    try {
+      const raw = sessionStorage.getItem(PENDING_CHECKOUT_KEY);
+      stored = raw ? (JSON.parse(raw) as PendingClientCheckout) : null;
+    } catch {
+      stored = null;
+    }
+
+    const plotIds = stored?.plotIds ?? [];
+    if (stored) {
+      setSelectedPlots(stored.plotIds);
+      setPurchaseDetails({
+        brandName: stored.brandName,
+        logo: stored.logo,
+        websiteUrl: stored.websiteUrl,
+      });
+    }
+
+    setIsPaymentModalOpen(false);
+    setIsConfirmingPayment(true);
+
+    let cancelled = false;
+    const started = Date.now();
+    const ownerId = getUserId();
+
+    const finishUrl = () => {
+      window.history.replaceState({}, "", window.location.pathname);
+    };
+
+    const tick = async () => {
+      if (cancelled) return;
+      try {
+        if (checkoutId) {
+          const res = await fetch(
+            `/api/checkout/${encodeURIComponent(checkoutId)}?ownerId=${encodeURIComponent(ownerId)}`
+          );
+          const data = await res.json().catch(() => null);
+          if (res.ok && data?.status === "completed") {
+            await loadData();
+            if (isSoundEnabled) playSuccessChime();
+            setIsConfirmingPayment(false);
+            setIsSuccessModalOpen(true);
+            sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
+            finishUrl();
+            return;
+          }
+          if (res.ok && data?.status === "failed") {
+            setIsConfirmingPayment(false);
+            showToast(data.error || "Payment could not be applied to plots.");
+            sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
+            finishUrl();
+            return;
+          }
+        }
+
+        const plotsRes = await fetch("/api/plots");
+        const plotsData = await plotsRes.json().catch(() => null);
+        if (plotsRes.ok && Array.isArray(plotsData) && plotIds.length) {
+          const owned = plotIds.every((id) => {
+            const plot = plotsData.find((p: Plot) => p.id === id);
+            return plot && plot.ownerId === ownerId && plot.status === "owned";
+          });
+          if (owned) {
+            setPlots(plotsData);
+            if (isSoundEnabled) playSuccessChime();
+            setIsConfirmingPayment(false);
+            setIsSuccessModalOpen(true);
+            sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
+            finishUrl();
+            return;
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+
+      if (Date.now() - started > 90_000) {
+        setIsConfirmingPayment(false);
+        showToast("Payment may still be processing. Refresh in a moment if your spots are not claimed yet.");
+        finishUrl();
+        return;
+      }
+
+      window.setTimeout(tick, 1500);
+    };
+
+    tick();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSoundEnabled, loadData]);
 
   const handlePlotClick = (plot: Plot, siblingPlot?: Plot) => {
     if (plot.status === 'owned') {
@@ -142,39 +254,35 @@ export default function App() {
     setIsPaymentModalOpen(true);
   };
 
-  const executePurchase = async () => {
+  const startDodoCheckout = async () => {
     if (!purchaseDetails) return;
-    
-    // TODO: Integrate actual payment gateway logic here
-    // Swap this simulated fetch with a real payment provider SDK (like Stripe, Razorpay, or PayPal).
-    // The payment provider will give you a token/intent which should be sent to your backend for verification.
-    try {
-      const payload = {
-        plotIds: selectedPlots,
-        ownerId: getUserId(),
-        ...purchaseDetails
-      };
 
-      const res = await fetch('/api/purchase', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+    const payload = {
+      plotIds: selectedPlots,
+      ownerId: getUserId(),
+      ...purchaseDetails,
+    };
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to complete purchase.');
-      }
-
-      setIsPaymentModalOpen(false);
-      if (isSoundEnabled) playSuccessChime();
-      setIsSuccessModalOpen(true);
-      loadData();
-    } catch (err: any) {
-      showToast(err.message || 'An error occurred during purchase.');
-      setIsPaymentModalOpen(false);
+    const res = await fetch("/api/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.checkoutUrl) {
+      throw new Error(
+        (data && typeof data.error === "string" && data.error) ||
+          "Could not start Dodo checkout."
+      );
     }
+
+    const pending: PendingClientCheckout = {
+      checkoutId: data.checkoutId,
+      plotIds: selectedPlots,
+      ...purchaseDetails,
+    };
+    sessionStorage.setItem(PENDING_CHECKOUT_KEY, JSON.stringify(pending));
+    window.location.href = data.checkoutUrl;
   };
 
   const claimedSpots = plots.filter(p => p.status === 'owned').length;
@@ -301,7 +409,19 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Modals */}
+      {isConfirmingPayment && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#111511]/50 backdrop-blur-sm p-6">
+          <div className="bg-white border border-[#C9D7B5] px-8 py-6 text-center max-w-sm shadow-xl">
+            <div className="mx-auto mb-3 w-6 h-6 border-2 border-[#17351F]/20 border-t-[#17351F] rounded-full animate-spin" />
+            <p className="text-xs font-black uppercase tracking-widest text-[#17351F]">
+              Confirming payment
+            </p>
+            <p className="mt-2 text-[11px] text-[#17351F]/70 leading-relaxed">
+              Waiting for Dodo to verify the charge. Your spots will appear as soon as the webhook completes.
+            </p>
+          </div>
+        </div>
+      )}
       {isAdminPanelOpen && (
         <AdminPanel onClose={() => setIsAdminPanelOpen(false)} />
       )}
@@ -320,7 +440,7 @@ export default function App() {
         <PaymentModal
           amount={selectedPlots.map(id => plots.find(p => p.id === id)).filter(Boolean).reduce((sum, plot) => sum + (plot!.status === 'available' ? plot!.currentPrice : Math.round(plot!.currentPrice * config.takeoverMultiplier)), 0)}
           plots={selectedPlots.map(id => plots.find(p => p.id === id)).filter(Boolean) as Plot[]}
-          onSuccess={executePurchase}
+          onPay={startDodoCheckout}
           onCancel={() => setIsPaymentModalOpen(false)}
         />
       )}

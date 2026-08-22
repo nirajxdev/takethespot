@@ -1,10 +1,11 @@
 import fs from "fs/promises";
 import path from "path";
-import type { MarketConfig, Plot, Transaction } from "../src/types.ts";
+import type { MarketConfig, PendingCheckout, Plot, Transaction } from "../src/types.ts";
 
 const CONFIG_FILE = path.join(process.cwd(), "config.json");
 const DATA_FILE = path.join(process.cwd(), "plots.json");
 const TRANSACTIONS_FILE = path.join(process.cwd(), "transactions.json");
+const CHECKOUTS_FILE = path.join(process.cwd(), "checkouts.json");
 
 export type PersistenceMode = "file" | "neon" | "memory";
 
@@ -15,6 +16,8 @@ export interface AppStore {
   setPlots(plots: Plot[]): Promise<void>;
   getTransactions(): Promise<Transaction[]>;
   setTransactions(txs: Transaction[]): Promise<void>;
+  getCheckouts(): Promise<Record<string, PendingCheckout>>;
+  setCheckouts(checkouts: Record<string, PendingCheckout>): Promise<void>;
 }
 
 async function fileExists(filename: string) {
@@ -52,6 +55,14 @@ function createFileStore(): AppStore {
     async setTransactions(txs) {
       await fs.writeFile(TRANSACTIONS_FILE, JSON.stringify(txs, null, 2));
     },
+    async getCheckouts() {
+      if (!(await fileExists(CHECKOUTS_FILE))) return {};
+      const data = await fs.readFile(CHECKOUTS_FILE, "utf-8");
+      return JSON.parse(data) as Record<string, PendingCheckout>;
+    },
+    async setCheckouts(checkouts) {
+      await fs.writeFile(CHECKOUTS_FILE, JSON.stringify(checkouts, null, 2));
+    },
   };
 }
 
@@ -59,6 +70,7 @@ function createMemoryStore(): AppStore {
   let config: MarketConfig | null = null;
   let plots: Plot[] | null = null;
   let transactions: Transaction[] = [];
+  let checkouts: Record<string, PendingCheckout> = {};
 
   return {
     async getConfig() {
@@ -79,6 +91,12 @@ function createMemoryStore(): AppStore {
     async setTransactions(txs) {
       transactions = txs;
     },
+    async getCheckouts() {
+      return checkouts;
+    },
+    async setCheckouts(next) {
+      checkouts = next;
+    },
   };
 }
 
@@ -86,6 +104,7 @@ const KEYS = {
   config: "config",
   plots: "plots",
   transactions: "transactions",
+  checkouts: "checkouts",
 } as const;
 
 async function createNeonStore(url: string): Promise<AppStore> {
@@ -136,6 +155,12 @@ async function createNeonStore(url: string): Promise<AppStore> {
       return (await getJson<Transaction[]>(KEYS.transactions)) ?? [];
     },
     setTransactions: (txs) => setJson(KEYS.transactions, txs),
+    async getCheckouts() {
+      return (
+        (await getJson<Record<string, PendingCheckout>>(KEYS.checkouts)) ?? {}
+      );
+    },
+    setCheckouts: (checkouts) => setJson(KEYS.checkouts, checkouts),
   };
 }
 

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 interface PaymentModalProps {
   amount: number;
   plots: Plot[];
-  onSuccess: () => void;
+  onPay: () => Promise<void>;
   onCancel: () => void;
 }
 
@@ -19,8 +19,9 @@ const upiProviders = [
   { id: 'bhim', name: 'BHIM', color: 'bg-[#FF7A00] text-white border-[#FF7A00]' }
 ];
 
-export default function PaymentModal({ amount, plots, onSuccess, onCancel }: PaymentModalProps) {
+export default function PaymentModal({ amount, plots, onPay, onCancel }: PaymentModalProps) {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   
   // Card state
@@ -32,19 +33,16 @@ export default function PaymentModal({ amount, plots, onSuccess, onCancel }: Pay
   // UPI state
   const [upiProvider, setUpiProvider] = useState<string>('gpay');
 
-  const handlePay = (e: React.FormEvent) => {
+  const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPayError(null);
     setIsProcessing(true);
-    
-    // TODO: INTEGRATION POINT
-    // 1. If paymentMethod === 'upi', you should ideally start polling your backend or listen to a WebSocket
-    //    event to verify that the UPI payment was actually captured before calling onSuccess().
-    // 2. If paymentMethod === 'card', submit the tokenized card details to your gateway (e.g., Stripe) here.
-    
-    // Simulate payment processing
-    setTimeout(() => {
-      onSuccess(); // TODO: Only call this AFTER backend confirmation
-    }, 2000);
+    try {
+      await onPay();
+    } catch (err) {
+      setPayError(err instanceof Error ? err.message : 'Could not start checkout.');
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -95,6 +93,16 @@ export default function PaymentModal({ amount, plots, onSuccess, onCancel }: Pay
           ))}
         </div>
 
+        <p className="text-[10px] text-[#17351F]/55 mb-4 leading-relaxed">
+          Card, UPI, and wallets are collected on Dodo&apos;s hosted checkout. You will be redirected to pay, then returned here.
+        </p>
+
+        {payError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-800 text-[11px] leading-relaxed">
+            {payError}
+          </div>
+        )}
+
         <form onSubmit={handlePay} className="flex-1 flex flex-col min-h-0">
           <div className="flex-1">
             <AnimatePresence mode="wait">
@@ -111,7 +119,6 @@ export default function PaymentModal({ amount, plots, onSuccess, onCancel }: Pay
                     <label className="block text-[10px] uppercase font-bold tracking-widest text-[#17351F]/60 mb-1.5">Cardholder Name</label>
                     <input
                       type="text"
-                      required
                       disabled={isProcessing}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -123,7 +130,6 @@ export default function PaymentModal({ amount, plots, onSuccess, onCancel }: Pay
                     <label className="block text-[10px] uppercase font-bold tracking-widest text-[#17351F]/60 mb-1.5">Card Number</label>
                     <input
                       type="text"
-                      required
                       disabled={isProcessing}
                       maxLength={19}
                       value={cardNumber}
@@ -137,7 +143,6 @@ export default function PaymentModal({ amount, plots, onSuccess, onCancel }: Pay
                       <label className="block text-[10px] uppercase font-bold tracking-widest text-[#17351F]/60 mb-1.5">Expiry</label>
                       <input
                         type="text"
-                        required
                         disabled={isProcessing}
                         maxLength={5}
                         value={expiry}
@@ -154,7 +159,6 @@ export default function PaymentModal({ amount, plots, onSuccess, onCancel }: Pay
                       <label className="block text-[10px] uppercase font-bold tracking-widest text-[#17351F]/60 mb-1.5">CVC</label>
                       <input
                         type="text"
-                        required
                         disabled={isProcessing}
                         maxLength={4}
                         value={cvc}
@@ -277,23 +281,19 @@ export default function PaymentModal({ amount, plots, onSuccess, onCancel }: Pay
 
           <button
             type="submit"
-            disabled={isProcessing || (paymentMethod === 'wallet')}
+            disabled={isProcessing}
             className={cn(
               "w-full mt-8 text-white py-4 text-xs font-black uppercase tracking-[0.2em] rounded-sm transition-all shadow-sm flex items-center justify-center h-[52px]",
-              paymentMethod === 'wallet' 
-                ? "bg-[#C9D7B5] text-[#17351F]/40 cursor-not-allowed" 
-                : "bg-[#17351F] hover:bg-[#2a5a35] disabled:opacity-70"
+              "bg-[#17351F] hover:bg-[#2a5a35] disabled:opacity-70"
             )}
           >
             {isProcessing ? (
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                <span>{paymentMethod === 'upi' ? 'VERIFYING...' : 'PROCESSING...'}</span>
+                <span>REDIRECTING TO DODO...</span>
               </div>
             ) : (
-              paymentMethod === 'wallet' ? 'SELECT WALLET ABOVE' : (
-                paymentMethod === 'upi' ? 'I HAVE PAID' : `PAY ${formatCurrency(amount)}`
-              )
+              `PAY ${formatCurrency(amount)} WITH DODO`
             )}
           </button>
         </form>

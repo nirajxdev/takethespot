@@ -40,3 +40,21 @@ export interface PurchaseRequest {
   logo: string;
   websiteUrl: string;
 }
+
+export type CheckoutStatus = "pending" | "completed" | "failed";
+
+export interface PendingCheckout {
+  id: string;
+  dodoSessionId: string | null;
+  plotIds: string[];
+  ownerId: string;
+  brandName: string;
+  logo: string;
+  websiteUrl: string;
+  expectedAmount: number;
+  status: CheckoutStatus;
+  paymentId?: string;
+  error?: string;
+  createdAt: string;
+  completedAt?: string;
+}

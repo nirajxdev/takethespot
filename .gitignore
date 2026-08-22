@@ -8,4 +8,5 @@ dist
 plots.json
 config.json
 transactions.json
+checkouts.json
 .vercel

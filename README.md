@@ -65,6 +65,19 @@ The acquisition price is calculated using a configurable multiplier.
 
 ---
 
+## Payments (Dodo)
+
+Checkout creates a **pending session on the server**. Plots are transferred only after Dodo sends a signed `payment.succeeded` webhook — not when the browser returns from checkout.
+
+**Webhook URL (production):** `https://takethespot.lol/api/webhooks/dodo`  
+Paste that in the Dodo dashboard under **Developer → Webhooks**. Events: `payment.succeeded`, plus `payment.failed` / `payment.cancelled`.
+
+Env vars (also listed in `.env.example`): `DODO_PAYMENTS_API_KEY` (or `DODO_API_KEY`), `DODO_PAYMENTS_WEBHOOK_KEY` (or `DODO_WEBHOOK_SECRET`), `DODO_PAYMENTS_ENVIRONMENT=test_mode`, `DODO_PRODUCT_ID` (one-time **Pay What You Want** product so plot totals in cents can be charged dynamically), optional `APP_URL=https://takethespot.lol`.
+
+Local `npm run dev` still starts if keys are missing; **Pay** returns a clear 503 instead of crashing the API. For webhooks on localhost, tunnel the same `/api/webhooks/dodo` path or use Dodo’s dashboard “Send example” against production.
+
+---
+
 ## License
 
 Private — all rights reserved.
