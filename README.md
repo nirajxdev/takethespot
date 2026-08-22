@@ -78,6 +78,26 @@ Local `npm run dev` still starts if keys are missing; **Pay** returns a clear 50
 
 ---
 
+# Built By
+
+DownAlert is built by:
+
+### Nitin Yadav
+
+**Founder / ML-focused Developer**
+
+- GitHub: [github.com/nitinyadav2188](https://github.com/nitinyadav2188)
+- LinkedIn: [linkedin.com/in//nitin-yadav-681850299](https://www.linkedin.com/in/nitin-yadav-681850299/)
+
+### Niraj
+
+**Co-Founder / Backend Developer**
+
+- GitHub: [github.com/nirajxdev](https://github.com/nirajxdev)
+- LinkedIn: [linkedin.com/in/niraj-singh-kushwaha-ba4b88297](https://www.linkedin.com/in/niraj-singh-kushwaha-ba4b88297)
+
+---
+
 ## License
 
-Private — all rights reserved.
+Copyright (c) 2026 | Nitin and Niraj
