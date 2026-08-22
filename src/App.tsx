@@ -10,6 +10,7 @@ import PaymentModal from './components/PaymentModal.tsx';
 import SuccessModal from './components/SuccessModal.tsx';
 import AdminPanel from './components/AdminPanel.tsx';
 import { AnimatePresence } from 'motion/react';
+import { Analytics } from '@vercel/analytics/react';
 
 export default function App() {
   const [plots, setPlots] = useState<Plot[]>([]);
@@ -202,6 +203,7 @@ export default function App() {
 
   return (
     <div className="h-[100dvh] w-screen bg-[#F5F8EC] text-[#111511] font-sans selection:bg-[#C8E87A] overflow-hidden relative flex flex-col items-center justify-center">
+      <Analytics />
       {/* Floating Status Micro-UI */}
       <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 pointer-events-none flex flex-col items-end gap-2">
         <p className="text-[9px] sm:text-[10px] uppercase tracking-widest text-[#17351F]/60 font-bold bg-[#F5F8EC]/80 px-2 py-1 rounded backdrop-blur-sm">
