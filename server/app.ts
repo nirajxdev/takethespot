@@ -33,7 +33,8 @@ function setBoardCache(res: Response) {
 function publicError(e: unknown, fallback: string) {
   const msg = e instanceof Error ? e.message : fallback;
   if (/DATABASE_URL/i.test(msg)) return msg;
-  if (/connect|password|enotfound|ssl|neon|postgres/i.test(msg)) {
+  if (/cannot find module/i.test(msg)) return fallback;
+  if (/connect|password|enotfound|ssl|postgres|ECONN|fetch failed/i.test(msg)) {
     return `${fallback}. Database connection failed. Check DATABASE_URL in the Vercel project Environment Variables.`;
   }
   return fallback;

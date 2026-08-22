@@ -107,24 +107,47 @@ const KEYS = {
   checkouts: "checkouts",
 } as const;
 
+function neonConnectionString(url: string) {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.delete("channel_binding");
+    if (!parsed.searchParams.has("sslmode")) {
+      parsed.searchParams.set("sslmode", "require");
+    }
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 async function createNeonStore(url: string): Promise<AppStore> {
   // Dynamic import: Vercel often compiles /api as CJS, and
   // @neondatabase/serverless is ESM-only. A static import becomes
   // require() and crashes the whole function (FUNCTION_INVOCATION_FAILED).
-  const { neon } = await import("@neondatabase/serverless");
-  const sql = neon(url);
+  const loaded = await import("@neondatabase/serverless");
+  const sql = loaded.neon(neonConnectionString(url));
   let tableReady = false;
 
   async function ensureTable() {
     if (tableReady) return;
-    await sql`
-      CREATE TABLE IF NOT EXISTS app_state (
-        key TEXT PRIMARY KEY,
-        value JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `;
-    tableReady = true;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await sql`
+          CREATE TABLE IF NOT EXISTS app_state (
+            key TEXT PRIMARY KEY,
+            value JSONB NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `;
+        tableReady = true;
+        return;
+      } catch (error) {
+        lastError = error;
+        await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+      }
+    }
+    throw lastError;
   }
 
   async function getJson<T>(key: string): Promise<T | null> {
@@ -175,7 +198,12 @@ export function getPersistence() {
 
 export async function getStore(): Promise<AppStore> {
   if (cached) return cached;
-  if (!pending) pending = initStore();
+  if (!pending) {
+    pending = initStore().catch((error) => {
+      pending = null;
+      throw error;
+    });
+  }
   return pending;
 }
 
