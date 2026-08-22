@@ -50,7 +50,18 @@ export function refreshExpirations(plots: Plot[]): boolean {
 }
 
 export function mergeConfig(saved: Partial<MarketConfig> | null): MarketConfig {
-  return { ...DEFAULT_CONFIG, ...(saved ?? {}) };
+  const src = saved ?? {};
+  return {
+    totalRows: src.totalRows ?? DEFAULT_CONFIG.totalRows,
+    totalColumns: src.totalColumns ?? DEFAULT_CONFIG.totalColumns,
+    initialPrice: src.initialPrice ?? DEFAULT_CONFIG.initialPrice,
+    maxInitialPlotsPerUser:
+      src.maxInitialPlotsPerUser ?? DEFAULT_CONFIG.maxInitialPlotsPerUser,
+    ownershipDurationDays:
+      src.ownershipDurationDays ?? DEFAULT_CONFIG.ownershipDurationDays,
+    takeoverMultiplier:
+      src.takeoverMultiplier ?? DEFAULT_CONFIG.takeoverMultiplier,
+  };
 }
 
 export type { Plot, MarketConfig, Transaction };

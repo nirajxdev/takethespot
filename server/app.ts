@@ -4,16 +4,30 @@ import {
   mergeConfig,
   refreshExpirations,
 } from "./market.ts";
-import { getStore } from "./store.ts";
+import { getPersistence, getStore } from "./store.ts";
 import type { Plot, Transaction } from "../src/types.ts";
 
+function getExpress() {
+  return ((express as unknown as { default?: typeof express }).default ??
+    express) as typeof express;
+}
+
+function publicError(e: unknown, fallback: string) {
+  const msg = e instanceof Error ? e.message : fallback;
+  if (/DATABASE_URL/i.test(msg)) return msg;
+  if (/connect|password|enotfound|ssl|neon|postgres/i.test(msg)) {
+    return `${fallback}. Database connection failed. Check DATABASE_URL in the Vercel project Environment Variables.`;
+  }
+  return fallback;
+}
+
 async function loadConfig() {
-  const store = getStore();
+  const store = await getStore();
   return mergeConfig(await store.getConfig());
 }
 
 async function loadPlots() {
-  const store = getStore();
+  const store = await getStore();
   const existing = await store.getPlots();
   if (existing) return existing;
   const config = await loadConfig();
@@ -23,30 +37,37 @@ async function loadPlots() {
 }
 
 async function savePlots(plots: Plot[]) {
-  await getStore().setPlots(plots);
+  await (await getStore()).setPlots(plots);
 }
 
 async function loadTransactions(): Promise<Transaction[]> {
-  return getStore().getTransactions();
+  return (await getStore()).getTransactions();
 }
 
 async function saveTransaction(tx: Transaction) {
-  const store = getStore();
+  const store = await getStore();
   const txs = await store.getTransactions();
   txs.push(tx);
   await store.setTransactions(txs);
 }
 
 export function createApiApp() {
-  const app = express();
-  app.use(express.json({ limit: "10mb" }));
+  const expressLib = getExpress();
+  const app = expressLib();
+  app.use(expressLib.json({ limit: "10mb" }));
 
   app.get("/api/config", async (_req, res) => {
     try {
-      res.json(await loadConfig());
+      await getStore();
+      const persistence = getPersistence();
+      res.json({
+        ...(await loadConfig()),
+        persistence: persistence.mode,
+        persistenceWarning: persistence.warning,
+      });
     } catch (e) {
       console.error(e);
-      res.status(500).json({ error: "Failed to load config" });
+      res.status(500).json({ error: publicError(e, "Failed to load config") });
     }
   });
 
@@ -59,7 +80,7 @@ export function createApiApp() {
       res.json(plots);
     } catch (e) {
       console.error(e);
-      res.status(500).json({ error: "Failed to load plots" });
+      res.status(500).json({ error: publicError(e, "Failed to load plots") });
     }
   });
 
@@ -75,7 +96,7 @@ export function createApiApp() {
       res.json(recent);
     } catch (e) {
       console.error(e);
-      res.status(500).json({ error: "Failed to load transactions" });
+      res.status(500).json({ error: publicError(e, "Failed to load transactions") });
     }
   });
 
@@ -91,7 +112,7 @@ export function createApiApp() {
       res.json(plotTxs);
     } catch (e) {
       console.error(e);
-      res.status(500).json({ error: "Failed to load transactions" });
+      res.status(500).json({ error: publicError(e, "Failed to load transactions") });
     }
   });
 
@@ -99,11 +120,11 @@ export function createApiApp() {
     try {
       const current = await loadConfig();
       const next = mergeConfig({ ...current, ...req.body });
-      await getStore().setConfig(next);
+      await (await getStore()).setConfig(next);
       res.json({ success: true, config: next });
     } catch (e) {
       console.error(e);
-      res.status(500).json({ error: "Failed to update config" });
+      res.status(500).json({ error: publicError(e, "Failed to update config") });
     }
   });
 
@@ -130,7 +151,7 @@ export function createApiApp() {
       res.json({ success: true, plot });
     } catch (e) {
       console.error(e);
-      res.status(500).json({ error: "Failed to revoke plot" });
+      res.status(500).json({ error: publicError(e, "Failed to revoke plot") });
     }
   });
 
@@ -240,7 +261,7 @@ export function createApiApp() {
       res.json({ success: true, updatedPlots: plotsToUpdate, totalCost });
     } catch (e) {
       console.error(e);
-      res.status(500).json({ error: "Failed to complete purchase" });
+      res.status(500).json({ error: publicError(e, "Failed to complete purchase") });
     }
   });
 

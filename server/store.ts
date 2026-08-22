@@ -1,11 +1,12 @@
 import fs from "fs/promises";
 import path from "path";
-import { neon } from "@neondatabase/serverless";
 import type { MarketConfig, Plot, Transaction } from "../src/types.ts";
 
 const CONFIG_FILE = path.join(process.cwd(), "config.json");
 const DATA_FILE = path.join(process.cwd(), "plots.json");
 const TRANSACTIONS_FILE = path.join(process.cwd(), "transactions.json");
+
+export type PersistenceMode = "file" | "neon" | "memory";
 
 export interface AppStore {
   getConfig(): Promise<MarketConfig | null>;
@@ -54,20 +55,44 @@ function createFileStore(): AppStore {
   };
 }
 
+function createMemoryStore(): AppStore {
+  let config: MarketConfig | null = null;
+  let plots: Plot[] | null = null;
+  let transactions: Transaction[] = [];
+
+  return {
+    async getConfig() {
+      return config;
+    },
+    async setConfig(next) {
+      config = next;
+    },
+    async getPlots() {
+      return plots;
+    },
+    async setPlots(next) {
+      plots = next;
+    },
+    async getTransactions() {
+      return transactions;
+    },
+    async setTransactions(txs) {
+      transactions = txs;
+    },
+  };
+}
+
 const KEYS = {
   config: "config",
   plots: "plots",
   transactions: "transactions",
 } as const;
 
-function createNeonStore(): AppStore {
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error(
-      "DATABASE_URL is required on Vercel. Create a Neon database and add the connection string in the Vercel project settings.",
-    );
-  }
-
+async function createNeonStore(url: string): Promise<AppStore> {
+  // Dynamic import: Vercel often compiles /api as CJS, and
+  // @neondatabase/serverless is ESM-only. A static import becomes
+  // require() and crashes the whole function (FUNCTION_INVOCATION_FAILED).
+  const { neon } = await import("@neondatabase/serverless");
   const sql = neon(url);
   let tableReady = false;
 
@@ -115,10 +140,39 @@ function createNeonStore(): AppStore {
 }
 
 let cached: AppStore | null = null;
+let pending: Promise<AppStore> | null = null;
+let persistenceMode: PersistenceMode = "file";
+let persistenceWarning: string | null = null;
 
-export function getStore(): AppStore {
+export function getPersistence() {
+  return { mode: persistenceMode, warning: persistenceWarning };
+}
+
+export async function getStore(): Promise<AppStore> {
   if (cached) return cached;
-  // Local `npm run dev` keeps JSON files. Vercel uses Neon (leftover DATABASE_URL).
-  cached = process.env.VERCEL ? createNeonStore() : createFileStore();
+  if (!pending) pending = initStore();
+  return pending;
+}
+
+async function initStore(): Promise<AppStore> {
+  if (process.env.VERCEL) {
+    const url = process.env.DATABASE_URL?.trim();
+    if (!url) {
+      persistenceMode = "memory";
+      persistenceWarning =
+        "DATABASE_URL is not set on Vercel. The grid is running in memory and will reset on every deploy or cold start. Add a Neon connection string in the Vercel project Environment Variables.";
+      console.error(persistenceWarning);
+      cached = createMemoryStore();
+      return cached;
+    }
+    persistenceMode = "neon";
+    persistenceWarning = null;
+    cached = await createNeonStore(url);
+    return cached;
+  }
+
+  persistenceMode = "file";
+  persistenceWarning = null;
+  cached = createFileStore();
   return cached;
 }

@@ -29,6 +29,8 @@ export default function App() {
   const [focusedPlots, setFocusedPlots] = useState<Plot[] | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -36,12 +38,37 @@ export default function App() {
         fetch('/api/plots'),
         fetch('/api/config')
       ]);
-      const plotsData = await plotsRes.json();
-      const configData = await configRes.json();
+
+      const plotsData = await plotsRes.json().catch(() => null);
+      const configData = await configRes.json().catch(() => null);
+
+      if (!plotsRes.ok || !Array.isArray(plotsData)) {
+        const message =
+          (plotsData && typeof plotsData === 'object' && 'error' in plotsData && typeof plotsData.error === 'string'
+            ? plotsData.error
+            : null) ||
+          `Could not load plots (${plotsRes.status}). The API may be down or DATABASE_URL is missing on Vercel.`;
+        throw new Error(message);
+      }
+
+      if (!configRes.ok || !configData || typeof configData !== 'object' || 'error' in configData && !('initialPrice' in configData)) {
+        const message =
+          (configData && typeof configData === 'object' && 'error' in configData && typeof configData.error === 'string'
+            ? configData.error
+            : null) ||
+          `Could not load config (${configRes.status}).`;
+        throw new Error(message);
+      }
+
       setPlots(plotsData);
-      setConfig(configData);
+      setConfig(configData as MarketConfig);
+      setPersistenceWarning(
+        typeof configData.persistenceWarning === 'string' ? configData.persistenceWarning : null
+      );
+      setLoadError(null);
     } catch (err) {
       console.error(err);
+      setLoadError(err instanceof Error ? err.message : 'Failed to load the grid.');
     } finally {
       setIsLoading(false);
     }
@@ -182,6 +209,13 @@ export default function App() {
         </p>
       </div>
 
+      {/* Persistence / load banners */}
+      {persistenceWarning && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 max-w-lg px-4 py-2 bg-[#111511] text-[#C8E87A] text-[10px] sm:text-xs uppercase tracking-wider text-center rounded-sm shadow-lg">
+          {persistenceWarning}
+        </div>
+      )}
+
       {/* Main Canvas */}
       <main className="w-full h-full relative z-10">
         <Grid 
@@ -196,8 +230,30 @@ export default function App() {
             ownershipDurationDays: 90,
             takeoverMultiplier: 2.5
           }}
-          isLoading={isLoading}
+          isLoading={isLoading && plots.length === 0}
         />
+        {!isLoading && (loadError || plots.length === 0) && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#C9D7B5]/90 p-6">
+            <div className="max-w-md bg-[#F5F8EC] border border-[#17351F]/20 p-6 text-center shadow-lg">
+              <p className="text-sm font-black uppercase tracking-widest text-[#17351F] mb-2">
+                {loadError ? 'Could not load the grid' : 'No plots to display'}
+              </p>
+              <p className="text-xs text-[#17351F]/70 mb-4 leading-relaxed">
+                {loadError || 'The API returned an empty board. If this is production, set DATABASE_URL (Neon) in the Vercel project Environment Variables and redeploy.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLoading(true);
+                  loadData();
+                }}
+                className="px-6 py-2 bg-[#17351F] text-[#F5F8EC] text-[10px] font-bold uppercase tracking-widest hover:bg-[#2a5a35]"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Floating Selection Panel */}
