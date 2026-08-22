@@ -6,14 +6,16 @@ import { createPortal } from 'react-dom';
 
 export interface ExtendedPlot extends Plot {
   isMerged?: boolean;
-  spanDirection?: 'col' | 'row';
-  siblingPlot?: Plot;
+  colSpan?: number;
+  rowSpan?: number;
+  mergedIds?: string[];
+  mergedPlots?: Plot[];
 }
 
 interface GridProps {
   plots: Plot[];
   selectedPlots: string[];
-  onPlotClick: (plot: Plot, siblingPlot?: Plot) => void;
+  onPlotClick: (plot: Plot, mergedPlots?: Plot[]) => void;
   config: MarketConfig;
   isLoading?: boolean;
 }
@@ -32,35 +34,76 @@ export default function Grid({ plots, selectedPlots, onPlotClick, config, isLoad
   const skipIds = new Set<string>();
 
   if (!isLoading) {
-    const getSibling = (plot: Plot) => {
-      if (plot.status === 'owned') {
-          return sortedPlots.find(p => p.ownerId === plot.ownerId && p.id !== plot.id && p.status === 'owned' && p.purchasedAt === plot.purchasedAt && !skipIds.has(p.id));
-      }
-      if (selectedPlots.includes(plot.id) && selectedPlots.length === 2) {
-          const otherId = selectedPlots.find(id => id !== plot.id);
-          return sortedPlots.find(p => p.id === otherId && !skipIds.has(p.id));
-      }
-      return null;
+    // Helper to group by a key
+    const groupBy = (arr: Plot[], keyFn: (p: Plot) => string) => {
+      const groups: Record<string, Plot[]> = {};
+      arr.forEach(p => {
+        const key = keyFn(p);
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(p);
+      });
+      return groups;
     };
+
+    // Group owned plots by owner+purchasedAt
+    const ownedPlots = sortedPlots.filter(p => p.status === 'owned');
+    const ownedGroups = groupBy(ownedPlots, p => `${p.ownerId}-${p.purchasedAt}`);
+    
+    // selectedPlots group
+    const selectedGroup = selectedPlots.map(id => sortedPlots.find(p => p.id === id)).filter(Boolean) as Plot[];
+    
+    const allGroups = [...Object.values(ownedGroups)];
+    if (selectedGroup.length > 0) {
+      allGroups.push(selectedGroup);
+    }
+
+    const mergedGroups: Plot[][] = [];
+
+    allGroups.forEach(group => {
+      if (group.length > 1) {
+        const minRow = Math.min(...group.map(p => p.row));
+        const maxRow = Math.max(...group.map(p => p.row));
+        const minCol = Math.min(...group.map(p => p.col));
+        const maxCol = Math.max(...group.map(p => p.col));
+        
+        const rows = maxRow - minRow + 1;
+        const cols = maxCol - minCol + 1;
+        
+        // Check if the group perfectly fills this bounding box
+        if (group.length === rows * cols) {
+          mergedGroups.push(group);
+        }
+      }
+    });
 
     for (const plot of sortedPlots) {
       if (skipIds.has(plot.id)) continue;
       
-      const sibling = getSibling(plot);
-      if (sibling) {
-          const isHorizontal = sibling.row === plot.row && Math.abs(sibling.col - plot.col) === 1;
-          const isVertical = sibling.col === plot.col && Math.abs(sibling.row - plot.row) === 1;
+      const mergedGroup = mergedGroups.find(g => g.some(p => p.id === plot.id));
+      
+      if (mergedGroup) {
+        // If this is the top-left most plot in the group, we render it
+        const minRow = Math.min(...mergedGroup.map(p => p.row));
+        const minCol = Math.min(...mergedGroup.map(p => p.col));
+        
+        if (plot.row === minRow && plot.col === minCol) {
+          const maxRow = Math.max(...mergedGroup.map(p => p.row));
+          const maxCol = Math.max(...mergedGroup.map(p => p.col));
           
-          if (isHorizontal || isVertical) {
-              skipIds.add(sibling.id);
-              renderablePlots.push({
-                  ...plot,
-                  isMerged: true,
-                  spanDirection: isHorizontal ? 'col' : 'row',
-                  siblingPlot: sibling
-              });
-              continue;
-          }
+          mergedGroup.forEach(p => {
+            if (p.id !== plot.id) skipIds.add(p.id);
+          });
+          
+          renderablePlots.push({
+            ...plot,
+            isMerged: true,
+            colSpan: maxCol - minCol + 1,
+            rowSpan: maxRow - minRow + 1,
+            mergedIds: mergedGroup.map(p => p.id),
+            mergedPlots: mergedGroup
+          });
+          continue;
+        }
       }
       
       renderablePlots.push({ ...plot, isMerged: false });
@@ -72,7 +115,7 @@ export default function Grid({ plots, selectedPlots, onPlotClick, config, isLoad
   return (
     <>
       <div 
-        className="w-full h-full overflow-auto bg-[#C9D7B5]"
+        className="w-full h-full overflow-hidden bg-[#C9D7B5]"
         onMouseMove={(e) => {
           if (hoveredPlot) {
             setMousePos({ x: e.clientX, y: e.clientY });
@@ -80,12 +123,8 @@ export default function Grid({ plots, selectedPlots, onPlotClick, config, isLoad
         }}
       >
         <div 
-          className="grid gap-[1px] bg-[#C9D7B5] shrink-0 m-auto" 
+          className="grid gap-[1px] bg-[#C9D7B5] w-full h-full" 
           style={{ 
-            minWidth: '100vw',
-            minHeight: '50vw',
-            width: 'max(100vw, 200dvh)',
-            height: 'max(50vw, 100dvh)',
             gridTemplateColumns: `repeat(${config.totalColumns}, minmax(0, 1fr))`,
             gridTemplateRows: `repeat(${config.totalRows}, minmax(0, 1fr))`,
             gridAutoFlow: 'dense'
@@ -111,39 +150,51 @@ export default function Grid({ plots, selectedPlots, onPlotClick, config, isLoad
               <PlotSquare 
                 key={plot.id}
                 plot={plot}
-                siblingPlot={plot.siblingPlot}
+                mergedPlots={plot.mergedPlots}
                 isMerged={plot.isMerged}
-                spanDirection={plot.spanDirection}
-                isSelected={selectedPlots.includes(plot.id) || (plot.siblingPlot ? selectedPlots.includes(plot.siblingPlot.id) : false)}
-                onClick={() => onPlotClick(plot, plot.siblingPlot)}
+                colSpan={plot.colSpan}
+                rowSpan={plot.rowSpan}
+                isSelected={selectedPlots.includes(plot.id) || (plot.mergedIds?.some(id => selectedPlots.includes(id)) || false)}
+                onClick={() => onPlotClick(plot, plot.mergedPlots)}
                 onMouseEnter={(e) => {
                   if (plot.status === 'owned') {
                     setHoveredPlot(plot);
                     setMousePos({ x: e.clientX, y: e.clientY });
                   }
                 }}
-                onMouseLeave={() => {
-                  setHoveredPlot(null);
-                }}
+                onMouseLeave={() => setHoveredPlot(null)}
               />
             ))
           )}
         </div>
       </div>
-      
-      {/* Portal for tooltip to avoid overflow issues */}
-      {hoveredPlot && typeof document !== 'undefined' && createPortal(
+
+      {hoveredPlot && hoveredPlot.status === 'owned' && createPortal(
         <div 
-          className="fixed z-[9999] pointer-events-none mb-4 px-3 py-2 bg-[#111511] text-white text-[10px] uppercase tracking-wider shadow-xl flex flex-col items-center gap-1 transition-opacity duration-150 rounded-sm"
-          style={{ 
-            left: mousePos.x, 
-            top: mousePos.y - 10,
-            transform: 'translate(-50%, -100%)'
-          }}
+          className="fixed pointer-events-none z-50 bg-[#17351F] text-[#F5F8EC] p-3 rounded shadow-xl border border-[#C9D7B5]/30 transform -translate-x-1/2 -translate-y-[calc(100%+16px)] min-w-[200px]"
+          style={{ left: mousePos.x, top: mousePos.y }}
         >
-          <span className="font-bold text-[#C8E87A]">{hoveredPlot.brandName}</span>
-          <span className="text-white/70">{getDaysLeft(hoveredPlot.expiresAt)} days left</span>
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-4 border-transparent border-t-[#111511]"></div>
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-widest text-[#F5F8EC]/60 font-bold">
+              {hoveredPlot.id} {hoveredPlot.mergedIds ? `(Merged: ${hoveredPlot.mergedIds.length} blocks)` : ''}
+            </span>
+            <span className="font-black tracking-wide text-sm">
+              {hoveredPlot.brandName}
+            </span>
+            {hoveredPlot.websiteUrl && (
+              <span className="text-xs text-[#C8E87A] truncate">
+                {hoveredPlot.websiteUrl}
+              </span>
+            )}
+            <div className="mt-2 pt-2 border-t border-white/10 flex justify-between items-center text-[10px] font-mono">
+              <span className="text-white/50">Time Left</span>
+              <span className="text-white">
+                {getDaysLeft(hoveredPlot.purchasedAt, config.ownershipDurationDays)} days
+              </span>
+            </div>
+          </div>
+          {/* Tooltip triangle */}
+          <div className="absolute left-1/2 bottom-0 transform -translate-x-1/2 translate-y-full w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-[#17351F]"></div>
         </div>,
         document.body
       )}

@@ -33,49 +33,179 @@ export default function SuccessModal({ plots, brandName, onClose }: SuccessModal
 
   const downloadCertificate = () => {
     const canvas = document.createElement('canvas');
-    canvas.width = 800;
-    canvas.height = 600;
+    canvas.width = 1200;
+    canvas.height = 850;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
-    // Background
-    ctx.fillStyle = '#F5F8EC';
+    
+    // Fill base background
+    ctx.fillStyle = '#F4F7F2';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Border
-    ctx.strokeStyle = '#17351F';
-    ctx.lineWidth = 10;
-    ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
-
-    // Title
-    ctx.fillStyle = '#17351F';
-    ctx.font = 'bold 40px serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('CERTIFICATE OF OWNERSHIP', canvas.width / 2, 120);
+    // Draw intricate borders
+    const margin = 40;
     
-    // Subtitle
-    ctx.font = '20px sans-serif';
+    // Outer thick border
+    ctx.strokeStyle = '#17351F';
+    ctx.lineWidth = 12;
+    ctx.strokeRect(margin, margin, canvas.width - margin * 2, canvas.height - margin * 2);
+    
+    // Inner thin border
+    ctx.strokeStyle = '#2a5a35';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(margin + 15, margin + 15, canvas.width - (margin + 15) * 2, canvas.height - (margin + 15) * 2);
+
+    // Another inner thick gold-ish border
+    ctx.strokeStyle = '#C8E87A';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(margin + 22, margin + 22, canvas.width - (margin + 22) * 2, canvas.height - (margin + 22) * 2);
+
+    // Subtle background pattern or watermark
+    ctx.save();
+    ctx.globalAlpha = 0.03;
     ctx.fillStyle = '#17351F';
-    ctx.fillText('This certifies that', canvas.width / 2, 200);
+    for (let i = 0; i < canvas.width; i += 60) {
+      for (let j = 0; j < canvas.height; j += 60) {
+        ctx.beginPath();
+        ctx.arc(i, j, 20, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    // Corner Ornaments
+    const drawOrnament = (x: number, y: number, rotation: number) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.fillStyle = '#17351F';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(40, 0);
+      ctx.lineTo(0, 40);
+      ctx.fill();
+      
+      ctx.fillStyle = '#C8E87A';
+      ctx.beginPath();
+      ctx.moveTo(10, 10);
+      ctx.lineTo(30, 10);
+      ctx.lineTo(10, 30);
+      ctx.fill();
+      ctx.restore();
+    };
+
+    drawOrnament(margin + 22, margin + 22, 0); // Top Left
+    drawOrnament(canvas.width - margin - 22, margin + 22, Math.PI / 2); // Top Right
+    drawOrnament(canvas.width - margin - 22, canvas.height - margin - 22, Math.PI); // Bottom Right
+    drawOrnament(margin + 22, canvas.height - margin - 22, -Math.PI / 2); // Bottom Left
+
+    // Headers
+    ctx.fillStyle = '#17351F';
+    // Use letter-spacing workaround if standard property isn't supported, but we'll try standard string first
+    ctx.font = 'bold 24px sans-serif';
+    ctx.textAlign = 'center';
+    
+    // Add letterSpacing if supported (fallback is fine)
+    if ('letterSpacing' in ctx) {
+      (ctx as any).letterSpacing = '10px';
+    }
+    ctx.fillText('TAKE THE SPOT', canvas.width / 2, 140);
+    
+    if ('letterSpacing' in ctx) {
+      (ctx as any).letterSpacing = '0px';
+    }
+
+    ctx.fillStyle = '#17351F';
+    ctx.font = '900 64px "Times New Roman", serif';
+    ctx.fillText('CERTIFICATE OF OWNERSHIP', canvas.width / 2, 240);
+
+    // Separator line
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 - 200, 280);
+    ctx.lineTo(canvas.width / 2 + 200, 280);
+    ctx.strokeStyle = '#C8E87A';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // Subtitle
+    ctx.font = 'italic 28px "Times New Roman", serif';
+    ctx.fillStyle = '#2a5a35';
+    ctx.fillText('This document hereby certifies that', canvas.width / 2, 360);
 
     // Brand Name
-    ctx.font = 'bold 48px serif';
-    ctx.fillStyle = '#17351F';
-    ctx.fillText(brandName.toUpperCase(), canvas.width / 2, 280);
+    ctx.font = 'bold 72px "Times New Roman", serif';
+    ctx.fillStyle = '#111511';
+    ctx.fillText(brandName.toUpperCase(), canvas.width / 2, 460);
 
     // Plots
-    ctx.font = '20px sans-serif';
+    ctx.font = '24px sans-serif';
     ctx.fillStyle = '#17351F';
-    ctx.fillText('is the official owner of the following digital plots:', canvas.width / 2, 360);
+    ctx.fillText('is the official and exclusive owner of the following digital block(s):', canvas.width / 2, 540);
     
-    ctx.font = 'bold 24px monospace';
+    ctx.font = 'bold 36px monospace';
     ctx.fillStyle = '#2a5a35';
-    ctx.fillText(plots.map(p => p.id).join(', '), canvas.width / 2, 420);
+    const plotsText = plots.map(p => p.id).join(', ');
+    ctx.fillText(plotsText, canvas.width / 2, 610);
 
     // Date
-    ctx.font = 'italic 16px sans-serif';
+    ctx.font = 'italic 20px "Times New Roman", serif';
     ctx.fillStyle = '#17351F';
-    ctx.fillText(`Issued on ${new Date().toLocaleDateString()}`, canvas.width / 2, 520);
+    const issueDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    ctx.fillText(`Issued on this day, ${issueDate}`, canvas.width / 2, 690);
+
+    // Signature Area
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 - 120, 770);
+    ctx.lineTo(canvas.width / 2 + 120, 770);
+    ctx.strokeStyle = '#17351F';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.font = '16px sans-serif';
+    ctx.fillStyle = '#2a5a35';
+    ctx.fillText('Authorized Signature', canvas.width / 2, 795);
+
+    // Add a seal/badge in bottom left
+    const drawSeal = (x: number, y: number, radius: number) => {
+      ctx.save();
+      ctx.translate(x, y);
+      
+      // Starburst
+      ctx.fillStyle = '#C8E87A';
+      ctx.beginPath();
+      for (let i = 0; i < 30; i++) {
+        ctx.rotate(Math.PI / 15);
+        ctx.lineTo(0, radius);
+        ctx.rotate(Math.PI / 15);
+        ctx.lineTo(0, radius - 15);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      // Inner circles
+      ctx.beginPath();
+      ctx.arc(0, 0, radius - 18, 0, Math.PI * 2);
+      ctx.fillStyle = '#17351F';
+      ctx.fill();
+      
+      ctx.beginPath();
+      ctx.arc(0, 0, radius - 22, 0, Math.PI * 2);
+      ctx.strokeStyle = '#C8E87A';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Seal Text
+      ctx.fillStyle = '#C8E87A';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('VERIFIED', 0, -10);
+      ctx.fillText('OWNER', 0, 10);
+      
+      ctx.restore();
+    };
+
+    drawSeal(200, 710, 65);
 
     // Download
     const dataUrl = canvas.toDataURL('image/png');
