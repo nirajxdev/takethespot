@@ -53,6 +53,14 @@ export default function App() {
     return () => clearInterval(interval);
   }, [loadData]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const path = window.location.pathname.replace(/\/$/, "");
+    if (params.get("admin") === "1" || path === "/admin") {
+      setIsAdminPanelOpen(true);
+    }
+  }, []);
+
   const showToast = (message: string) => {
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3000);
@@ -212,9 +220,18 @@ export default function App() {
         <div className="flex items-center gap-4">
           <span>© {new Date().getFullYear()} TAKE THE SPOT</span>
         </div>
-        <span className="hidden sm:inline">
-          {config ? `$${(config.initialPrice / 100).toFixed(2)} PER PLOT` : ''}
-        </span>
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => setIsAdminPanelOpen(true)}
+            className="uppercase tracking-[0.2em] hover:text-[#C8E87A] transition-colors"
+          >
+            Admin
+          </button>
+          <span className="hidden sm:inline">
+            {config ? `$${(config.initialPrice / 100).toFixed(2)} PER PLOT` : ''}
+          </span>
+        </div>
       </footer>
 
       {/* Toast Notification */}
