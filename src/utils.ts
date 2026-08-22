@@ -20,9 +20,13 @@ export function cn(...classes: (string | undefined | null | false)[]) {
   return classes.filter(Boolean).join(' ');
 }
 
-export function getDaysLeft(expiresAt: string | null) {
-  if (!expiresAt) return 0;
-  const diff = new Date(expiresAt).getTime() - new Date().getTime();
+export function getDaysLeft(startOrExpiry: string | null, durationDays?: number) {
+  if (!startOrExpiry) return 0;
+  const start = new Date(startOrExpiry).getTime();
+  const end = durationDays != null
+    ? start + durationDays * 24 * 60 * 60 * 1000
+    : start;
+  const diff = end - Date.now();
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 }
 

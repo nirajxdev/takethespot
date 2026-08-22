@@ -51,8 +51,21 @@ export default function App() {
 
   const loadData = useCallback(async () => {
     try {
-      const boardRes = await fetch('/api/board');
-      const boardData = await boardRes.json().catch(() => null);
+      let boardRes = await fetch('/api/board');
+      let boardData = await boardRes.json().catch(() => null);
+
+      if (!boardRes.ok || !boardData || !Array.isArray(boardData.plots)) {
+        const [plotsRes, configRes] = await Promise.all([
+          fetch('/api/plots'),
+          fetch('/api/config'),
+        ]);
+        const plotsData = await plotsRes.json().catch(() => null);
+        const configData = await configRes.json().catch(() => null);
+        if (plotsRes.ok && Array.isArray(plotsData) && configRes.ok && configData && typeof configData === 'object') {
+          boardData = { plots: plotsData, config: configData };
+          boardRes = plotsRes;
+        }
+      }
 
       if (!boardRes.ok || !boardData || !Array.isArray(boardData.plots)) {
         const message =
