@@ -17,6 +17,7 @@ import {
   headerValue,
 } from "./dodo.ts";
 import { completePurchase, quotePurchaseTotal, type PurchaseResult } from "./purchase.ts";
+import { handleAdminLogin, requireAdmin } from "./admin.ts";
 
 function getExpress() {
   return ((express as unknown as { default?: typeof express }).default ??
@@ -28,6 +29,25 @@ function setBoardCache(res: Response) {
     "Cache-Control",
     "public, max-age=0, s-maxage=5, stale-while-revalidate=30",
   );
+}
+
+function paymentCoversExpected(
+  payment: {
+    currency?: string;
+    total_amount?: number;
+    settlement_amount?: number;
+    settlement_currency?: string;
+  },
+  expectedUsdCents: number,
+) {
+  if (payment.settlement_currency === "USD" && typeof payment.settlement_amount === "number") {
+    return payment.settlement_amount >= expectedUsdCents;
+  }
+  if (payment.currency === "USD" && typeof payment.total_amount === "number") {
+    return payment.total_amount >= expectedUsdCents;
+  }
+  // INR / adaptive: do not compare paise to USD cents.
+  return typeof payment.total_amount === "number" && payment.total_amount > 0;
 }
 
 function publicError(e: unknown, fallback: string) {
@@ -222,13 +242,11 @@ export function createApiApp() {
         }
 
         if (
-          payment.currency === "USD" &&
-          typeof payment.total_amount === "number" &&
-          payment.total_amount < checkout.expectedAmount
+          !paymentCoversExpected(payment, checkout.expectedAmount)
         ) {
           checkout.status = "failed";
           checkout.paymentId = payment.payment_id;
-          checkout.error = `Paid ${payment.total_amount} cents but expected ${checkout.expectedAmount}`;
+          checkout.error = `Paid ${payment.total_amount} ${payment.currency} but expected ${checkout.expectedAmount} USD cents`;
           await saveCheckout(checkout);
           console.error(checkout.error);
           return res.status(200).json({ received: true, fulfilled: false });
@@ -336,7 +354,9 @@ export function createApiApp() {
     }
   });
 
-  app.post("/api/admin/config", async (req, res) => {
+  app.post("/api/admin/login", handleAdminLogin);
+
+  app.post("/api/admin/config", requireAdmin, async (req, res) => {
     try {
       const current = await loadConfig();
       const next = mergeConfig({ ...current, ...req.body });
@@ -348,7 +368,7 @@ export function createApiApp() {
     }
   });
 
-  app.post("/api/admin/revoke", async (req, res) => {
+  app.post("/api/admin/revoke", requireAdmin, async (req, res) => {
     try {
       const { plotId } = req.body;
       if (!plotId) return res.status(400).json({ error: "plotId is required" });
@@ -407,6 +427,10 @@ export function createApiApp() {
       const returnUrl = `${getAppBaseUrl(req)}/?paid=1&checkout=${encodeURIComponent(checkoutId)}`;
       const cancelUrl = `${getAppBaseUrl(req)}/?paid=0`;
 
+      const billingCurrency = (
+        process.env.DODO_BILLING_CURRENCY ?? "INR"
+      ).trim().toUpperCase();
+
       const session = await client.checkoutSessions.create({
         product_cart: [
           {
@@ -415,7 +439,13 @@ export function createApiApp() {
             amount: quote.totalCost,
           },
         ],
-        billing_currency: "USD",
+        billing_currency: billingCurrency === "USD" ? "USD" : "INR",
+        allowed_payment_method_types: [
+          "upi_collect",
+          "upi_intent",
+          "credit",
+          "debit",
+        ],
         return_url: returnUrl,
         cancel_url: cancelUrl,
         metadata: {

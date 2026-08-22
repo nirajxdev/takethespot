@@ -56,7 +56,9 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         localStorage.setItem('adminToken', data.token);
         setIsAuthenticated(true);
       } else {
-        setLoginError('Invalid password');
+        setLoginError(
+          typeof data?.error === 'string' ? data.error : 'Invalid password'
+        );
       }
     } catch {
       setLoginError('Error logging in');
