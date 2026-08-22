@@ -411,8 +411,8 @@ export function createApiApp() {
       if (quote.ok === false) {
         return res.status(quote.status).json({ error: quote.error });
       }
-      if (quote.totalCost < 1) {
-        return res.status(400).json({ error: "Checkout amount must be at least 1 cent." });
+      if (quote.totalCost < 100) {
+        return res.status(400).json({ error: "Checkout amount must be at least $1.00." });
       }
 
       const client = getDodoClient();
@@ -427,9 +427,7 @@ export function createApiApp() {
       const returnUrl = `${getAppBaseUrl(req)}/?paid=1&checkout=${encodeURIComponent(checkoutId)}`;
       const cancelUrl = `${getAppBaseUrl(req)}/?paid=0`;
 
-      const billingCurrency = (
-        process.env.DODO_BILLING_CURRENCY ?? "INR"
-      ).trim().toUpperCase();
+      const billingCurrency = process.env.DODO_BILLING_CURRENCY?.trim().toUpperCase();
 
       const session = await client.checkoutSessions.create({
         product_cart: [
@@ -439,13 +437,9 @@ export function createApiApp() {
             amount: quote.totalCost,
           },
         ],
-        billing_currency: billingCurrency === "USD" ? "USD" : "INR",
-        allowed_payment_method_types: [
-          "upi_collect",
-          "upi_intent",
-          "credit",
-          "debit",
-        ],
+        ...(billingCurrency === "USD" || billingCurrency === "INR"
+          ? { billing_currency: billingCurrency }
+          : {}),
         return_url: returnUrl,
         cancel_url: cancelUrl,
         metadata: {
@@ -453,6 +447,8 @@ export function createApiApp() {
         },
         feature_flags: {
           redirect_immediately: true,
+          allow_currency_selection: true,
+          allow_customer_editing_country: true,
         },
       });
 
