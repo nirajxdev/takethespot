@@ -267,8 +267,22 @@ export default function App() {
     } else {
       if (!config) return;
 
-      if (selectedPlots.length >= 12) {
-        showToast('You can only select a maximum of 12 blocks.');
+      const ownerId = getUserId();
+      const remaining =
+        config.maxPlotsPerUser -
+        plots.filter((p) => p.ownerId === ownerId).length;
+
+      if (remaining <= 0) {
+        showToast(`You already hold ${config.maxPlotsPerUser} spots, the maximum allowed.`);
+        return;
+      }
+
+      if (selectedPlots.length >= remaining) {
+        showToast(
+          remaining === config.maxPlotsPerUser
+            ? `You may select up to ${config.maxPlotsPerUser} spots.`
+            : `You may hold ${config.maxPlotsPerUser} spots in total. ${remaining} remaining.`
+        );
         return;
       }
 
@@ -282,7 +296,7 @@ export default function App() {
         });
 
         if (!isAdjacent) {
-          showToast('Please select an adjacent block.');
+          showToast('Select a spot that shares an edge with your current selection.');
           return;
         }
       }
@@ -292,6 +306,18 @@ export default function App() {
   };
 
   const handleTakeover = (plotsToTake: Plot[]) => {
+    if (!config) return;
+    const remaining =
+      config.maxPlotsPerUser -
+      plots.filter((p) => p.ownerId === getUserId()).length;
+    if (plotsToTake.length > remaining) {
+      showToast(
+        remaining === 0
+          ? `You already hold ${config.maxPlotsPerUser} spots, the maximum allowed.`
+          : `You may hold ${config.maxPlotsPerUser} spots in total. ${remaining} remaining.`
+      );
+      return;
+    }
     setFocusedPlots(null);
     setSelectedPlots(plotsToTake.map(p => p.id));
     setIsPurchaseModalOpen(true);
@@ -393,7 +419,7 @@ export default function App() {
             totalRows: 12,
             totalColumns: 24,
             initialPrice: 100,
-            maxInitialPlotsPerUser: 2,
+            maxPlotsPerUser: 12,
             ownershipDurationDays: 90,
             takeoverMultiplier: 2.5
           }}

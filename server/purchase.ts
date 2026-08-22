@@ -1,5 +1,5 @@
 import type { MarketConfig, Plot, Transaction } from "../src/types.ts";
-import { refreshExpirations } from "./market.ts";
+import { ownershipLimitError, refreshExpirations } from "./market.ts";
 import { getStore } from "./store.ts";
 
 export type PurchaseInput = {
@@ -60,26 +60,14 @@ export async function completePurchase(
     return { ok: true, updatedPlots, totalCost };
   }
 
-  const userOwnedCount = plots.filter((p) => p.ownerId === ownerId).length;
-
-  const initialPurchasePlots = plotIds.filter((id: string) => {
-    const p = plots.find((plot) => plot.id === id);
-    return (
-      p && p.status === "available" && p.currentPrice === config.initialPrice
-    );
-  });
-
-  if (initialPurchasePlots.length > 0) {
-    if (
-      userOwnedCount + initialPurchasePlots.length >
-      config.maxInitialPlotsPerUser
-    ) {
-      return {
-        ok: false,
-        status: 400,
-        error: `Launch limit: You can own up to ${config.maxInitialPlotsPerUser} plots right now.`,
-      };
-    }
+  const limitError = ownershipLimitError(
+    plots,
+    plotIds,
+    ownerId,
+    config.maxPlotsPerUser,
+  );
+  if (limitError) {
+    return { ok: false, status: 400, error: limitError };
   }
 
   let totalCost = 0;
@@ -169,25 +157,14 @@ export async function quotePurchaseTotal(
   const plots = existing ?? [];
   refreshExpirations(plots);
 
-  const userOwnedCount = plots.filter((p) => p.ownerId === ownerId).length;
-  const initialPurchasePlots = plotIds.filter((id: string) => {
-    const p = plots.find((plot) => plot.id === id);
-    return (
-      p && p.status === "available" && p.currentPrice === config.initialPrice
-    );
-  });
-
-  if (initialPurchasePlots.length > 0) {
-    if (
-      userOwnedCount + initialPurchasePlots.length >
-      config.maxInitialPlotsPerUser
-    ) {
-      return {
-        ok: false,
-        status: 400,
-        error: `Launch limit: You can own up to ${config.maxInitialPlotsPerUser} plots right now.`,
-      };
-    }
+  const limitError = ownershipLimitError(
+    plots,
+    plotIds,
+    ownerId,
+    config.maxPlotsPerUser,
+  );
+  if (limitError) {
+    return { ok: false, status: 400, error: limitError };
   }
 
   let totalCost = 0;

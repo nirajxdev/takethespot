@@ -16,7 +16,8 @@ export interface MarketConfig {
   totalRows: number;
   totalColumns: number;
   initialPrice: number;
-  maxInitialPlotsPerUser: number;
+  /** Maximum spots one visitor may hold at once (claims + takeovers). */
+  maxPlotsPerUser: number;
   ownershipDurationDays: number;
   takeoverMultiplier: number;
 }

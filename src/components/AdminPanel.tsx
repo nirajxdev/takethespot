@@ -232,8 +232,8 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
                   <input type="number" value={config.ownershipDurationDays} onChange={e => setConfig({...config, ownershipDurationDays: Number(e.target.value)})} className="w-full px-4 py-2.5 rounded-sm border border-[#C9D7B5] bg-white text-sm" />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold tracking-widest text-[#17351F]/60 mb-1.5">Max Init Plots/User</label>
-                  <input type="number" value={config.maxInitialPlotsPerUser} onChange={e => setConfig({...config, maxInitialPlotsPerUser: Number(e.target.value)})} className="w-full px-4 py-2.5 rounded-sm border border-[#C9D7B5] bg-white text-sm" />
+                  <label className="block text-[10px] uppercase font-bold tracking-widest text-[#17351F]/60 mb-1.5">Max spots per visitor</label>
+                  <input type="number" value={config.maxPlotsPerUser} onChange={e => setConfig({...config, maxPlotsPerUser: Number(e.target.value)})} className="w-full px-4 py-2.5 rounded-sm border border-[#C9D7B5] bg-white text-sm" />
                 </div>
               </div>
               <button type="submit" className="mt-4 bg-[#17351F] text-white py-3 text-xs font-black uppercase tracking-[0.2em] rounded-sm hover:bg-[#2a5a35] transition-colors shadow-sm self-start px-8">Save Configuration</button>

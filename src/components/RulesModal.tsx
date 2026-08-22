@@ -43,22 +43,36 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
               <div className="space-y-4 text-sm text-[#17351F]/80 leading-relaxed">
                 <div className="flex gap-3">
                   <div className="w-5 h-5 shrink-0 rounded bg-[#C9D7B5] mt-0.5"></div>
-                  <p><strong>Claim Available Spots:</strong> Select any green blocks on the canvas to claim them. You can buy as many available blocks as you want at the initial base price.</p>
+                  <p>
+                    <strong>Claim open spots.</strong> Select empty cells on the board.
+                    Spots in a purchase must share an edge, and each visitor may hold
+                    up to 12 spots in total.
+                  </p>
                 </div>
-                
+
                 <div className="flex gap-3">
                   <div className="w-5 h-5 shrink-0 rounded bg-[#17351F] mt-0.5"></div>
-                  <p><strong>Upload Your Content:</strong> Once purchased, you can upload an image or logo and set a redirect URL. Your content will be visible to everyone who visits the canvas.</p>
+                  <p>
+                    <strong>Display your brand.</strong> After checkout, your name, logo,
+                    and website appear on those cells for every visitor to the board.
+                  </p>
                 </div>
 
                 <div className="flex gap-3">
                   <div className="w-5 h-5 shrink-0 rounded border-2 border-red-500/50 flex items-center justify-center mt-0.5"><span className="text-red-500 font-bold text-[10px]">!</span></div>
-                  <p><strong>Hostile Takeovers:</strong> Owned spots aren't yours forever! Other users can take over your spot by paying a premium multiplier. Keep an eye on your blocks.</p>
+                  <p>
+                    <strong>Spots can be acquired.</strong> Owned cells are not exclusive
+                    forever. Another visitor may take them by paying 2.5× the current
+                    price. Ownership lasts 90 days, then the cells return to the board.
+                  </p>
                 </div>
 
                 <div className="flex gap-3">
                   <div className="w-5 h-5 shrink-0 rounded bg-black/10 mt-0.5"></div>
-                  <p><strong>Merge Blocks:</strong> Soon you'll be able to merge adjacent blocks to display larger images. Claim strategic areas to build a bigger presence!</p>
+                  <p>
+                    <strong>Larger presence.</strong> Adjacent spots claimed in the same
+                    purchase that form a rectangle display as one larger tile.
+                  </p>
                 </div>
               </div>
 

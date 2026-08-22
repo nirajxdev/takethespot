@@ -4,7 +4,7 @@ export const DEFAULT_CONFIG: MarketConfig = {
   totalRows: 12,
   totalColumns: 24,
   initialPrice: 100, // 100 cents = $1.00
-  maxInitialPlotsPerUser: 2,
+  maxPlotsPerUser: 12,
   ownershipDurationDays: 90,
   takeoverMultiplier: 2.5,
 };
@@ -83,13 +83,47 @@ export function mergeConfig(saved: Partial<MarketConfig> | null): MarketConfig {
     totalRows: src.totalRows ?? DEFAULT_CONFIG.totalRows,
     totalColumns: src.totalColumns ?? DEFAULT_CONFIG.totalColumns,
     initialPrice: src.initialPrice ?? DEFAULT_CONFIG.initialPrice,
-    maxInitialPlotsPerUser:
-      src.maxInitialPlotsPerUser ?? DEFAULT_CONFIG.maxInitialPlotsPerUser,
+    maxPlotsPerUser: src.maxPlotsPerUser ?? DEFAULT_CONFIG.maxPlotsPerUser,
     ownershipDurationDays:
       src.ownershipDurationDays ?? DEFAULT_CONFIG.ownershipDurationDays,
     takeoverMultiplier:
       src.takeoverMultiplier ?? DEFAULT_CONFIG.takeoverMultiplier,
   };
+}
+
+export function remainingPlotCapacity(
+  plots: Plot[],
+  ownerId: string,
+  maxPlots: number,
+) {
+  const owned = plots.filter((p) => p.ownerId === ownerId).length;
+  return Math.max(0, maxPlots - owned);
+}
+
+export function ownershipLimitError(
+  plots: Plot[],
+  plotIds: string[],
+  ownerId: string,
+  maxPlots: number,
+): string | null {
+  const adding = plotIds.filter((id) => {
+    const plot = plots.find((p) => p.id === id);
+    return Boolean(plot && plot.ownerId !== ownerId);
+  }).length;
+
+  if (plotIds.length > maxPlots || adding > maxPlots) {
+    return `A purchase may include at most ${maxPlots} spots.`;
+  }
+
+  const remaining = remainingPlotCapacity(plots, ownerId, maxPlots);
+  if (adding > remaining) {
+    if (remaining === 0) {
+      return `You already hold ${maxPlots} spots, the maximum allowed.`;
+    }
+    return `You may hold ${maxPlots} spots in total. ${remaining} remaining.`;
+  }
+
+  return null;
 }
 
 export type { Plot, MarketConfig, Transaction };

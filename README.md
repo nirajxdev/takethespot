@@ -1,7 +1,7 @@
 # TakeTheSpot 
 > **Own your spot. Build your presence. Defend your territory.**
 
-**TakeTheSpot** is a competitive digital advertising marketplace where startups, products, creators, and businesses can claim territory on a shared 10×10 digital billboard.
+**TakeTheSpot** is a competitive digital advertising marketplace where startups, products, creators, and businesses can claim territory on a shared **12×24** digital billboard (288 spots).
 
 Every spot is a piece of digital real estate.
 
@@ -13,7 +13,7 @@ Users can claim available spots, showcase their brand, and compete for valuable 
 
 ### Interactive Billboard
 
-The platform contains **100 individual digital plots** arranged in a 10×10 grid.
+The platform contains **288 individual digital plots** arranged in a 12×24 grid.
 
 Each plot has its own:
 
@@ -34,8 +34,8 @@ Users can select available plots and claim them for their brand.
 At launch:
 
 - Starting price: **$1**
-- Maximum initial plots per user: **2**
-- Ownership duration: **3 months**
+- Maximum spots per visitor: **12**
+- Ownership duration: **90 days**
 
 After purchasing a plot, the user's brand appears directly on the billboard.
 

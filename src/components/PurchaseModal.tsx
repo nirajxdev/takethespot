@@ -137,7 +137,7 @@ export default function PurchaseModal({ selectedIds, plots, config, onClose, onP
             </div>
             <div className="flex justify-between items-center mb-3">
               <span className="text-[10px] font-bold uppercase tracking-widest text-[#17351F]/60">Duration</span>
-              <span className="font-mono text-[#17351F] font-bold text-sm">{config.ownershipDurationDays} months</span>
+              <span className="font-mono text-[#17351F] font-bold text-sm">{config.ownershipDurationDays} days</span>
             </div>
             <div className="h-px w-full bg-[#C9D7B5] my-4"></div>
             <div className="flex justify-between items-end">
