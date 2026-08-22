@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plot, MarketConfig, PurchaseRequest } from '../types.ts';
-import { formatCurrency, getUserId } from '../utils.ts';
+import { Plot, MarketConfig } from '../types.ts';
+import { formatCurrency, compressImageFile } from '../utils.ts';
 import { motion } from 'motion/react';
 
 interface PurchaseModalProps {
@@ -75,19 +75,19 @@ export default function PurchaseModal({ selectedIds, plots, config, onClose, onP
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (file) {
                       if (file.size > 2 * 1024 * 1024) {
                         setError('Logo file must be less than 2MB');
                         return;
                       }
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        setLogo(reader.result as string);
+                      try {
+                        setLogo(await compressImageFile(file));
                         setError(null);
-                      };
-                      reader.readAsDataURL(file);
+                      } catch {
+                        setError('Could not read that image.');
+                      }
                     }
                   }}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"

@@ -1,3 +1,5 @@
+import type { Plot } from './types.ts';
+
 export function formatCurrency(cents: number) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -22,4 +24,53 @@ export function getDaysLeft(expiresAt: string | null) {
   if (!expiresAt) return 0;
   const diff = new Date(expiresAt).getTime() - new Date().getTime();
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
+
+export function hydratePlots(raw: unknown[]): Plot[] {
+  return raw.map((item) => {
+    const p = item as Partial<Plot>;
+    return {
+      id: String(p.id ?? ""),
+      row: Number(p.row ?? 0),
+      col: Number(p.col ?? 0),
+      status: p.status === "owned" ? "owned" : "available",
+      ownerId: p.ownerId ?? null,
+      brandName: p.brandName ?? null,
+      logo: p.logo ?? null,
+      websiteUrl: p.websiteUrl ?? null,
+      currentPrice: Number(p.currentPrice ?? 0),
+      purchasedAt: p.purchasedAt ?? null,
+      expiresAt: p.expiresAt ?? null,
+    };
+  });
+}
+
+/** Shrink logos before they are stored as data URLs in the board JSON. */
+export function compressImageFile(file: File, maxPx = 96, quality = 0.72): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Could not compress logo"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(objectUrl);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not read logo"));
+    };
+    img.src = objectUrl;
+  });
 }

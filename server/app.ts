@@ -1,6 +1,7 @@
 import express from "express";
 import type { Request, Response } from "express";
 import {
+  compactPlotsForClient,
   createEmptyPlots,
   mergeConfig,
   refreshExpirations,
@@ -20,6 +21,13 @@ import { completePurchase, quotePurchaseTotal, type PurchaseResult } from "./pur
 function getExpress() {
   return ((express as unknown as { default?: typeof express }).default ??
     express) as typeof express;
+}
+
+function setBoardCache(res: Response) {
+  res.setHeader(
+    "Cache-Control",
+    "public, max-age=0, s-maxage=5, stale-while-revalidate=30",
+  );
 }
 
 function publicError(e: unknown, fallback: string) {
@@ -239,10 +247,37 @@ export function createApiApp() {
 
   app.use(expressLib.json({ limit: "10mb" }));
 
+  async function sendBoard(res: Response) {
+    const [config, plots] = await Promise.all([loadConfig(), loadPlots()]);
+    if (refreshExpirations(plots)) {
+      await savePlots(plots);
+    }
+    const persistence = getPersistence();
+    setBoardCache(res);
+    return {
+      plots: compactPlotsForClient(plots),
+      config: {
+        ...config,
+        persistence: persistence.mode,
+        persistenceWarning: persistence.warning,
+      },
+    };
+  }
+
+  app.get("/api/board", async (_req, res) => {
+    try {
+      res.json(await sendBoard(res));
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: publicError(e, "Failed to load board") });
+    }
+  });
+
   app.get("/api/config", async (_req, res) => {
     try {
       await getStore();
       const persistence = getPersistence();
+      setBoardCache(res);
       res.json({
         ...(await loadConfig()),
         persistence: persistence.mode,
@@ -260,7 +295,8 @@ export function createApiApp() {
       if (refreshExpirations(plots)) {
         await savePlots(plots);
       }
-      res.json(plots);
+      setBoardCache(res);
+      res.json(compactPlotsForClient(plots));
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: publicError(e, "Failed to load plots") });

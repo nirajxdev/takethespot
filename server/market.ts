@@ -9,6 +9,34 @@ export const DEFAULT_CONFIG: MarketConfig = {
   takeoverMultiplier: 2.5,
 };
 
+/** Drop nulls on empty plots so /api/board stays small (288 cells). */
+export function compactPlotsForClient(plots: Plot[]) {
+  return plots.map((plot) => {
+    if (plot.status !== "owned") {
+      return {
+        id: plot.id,
+        row: plot.row,
+        col: plot.col,
+        status: plot.status,
+        currentPrice: plot.currentPrice,
+      };
+    }
+    return {
+      id: plot.id,
+      row: plot.row,
+      col: plot.col,
+      status: plot.status,
+      ownerId: plot.ownerId,
+      brandName: plot.brandName,
+      logo: plot.logo,
+      websiteUrl: plot.websiteUrl,
+      currentPrice: plot.currentPrice,
+      purchasedAt: plot.purchasedAt,
+      expiresAt: plot.expiresAt,
+    };
+  });
+}
+
 export function createEmptyPlots(config: MarketConfig): Plot[] {
   const plots: Plot[] = [];
   for (let r = 0; r < config.totalRows; r++) {
