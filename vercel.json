@@ -4,7 +4,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api?__path=/api/$1" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|.*\\..*).*)", "destination": "/index.html" }
   ],
   "functions": {
     "api/index.ts": {
@@ -13,6 +13,13 @@
     }
   },
   "headers": [
+    {
+      "source": "/(og\\.png|og-image\\.png|banner\\.png|logo\\.png|favicon\\.png)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=3600" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    },
     {
       "source": "/assets/(.*)",
       "headers": [
