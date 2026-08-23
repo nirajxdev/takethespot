@@ -78,3 +78,66 @@ export function compressImageFile(file: File, maxPx = 96, quality = 0.72): Promi
     img.src = objectUrl;
   });
 }
+
+export function extractDomain(rawUrl: string): string {
+  try {
+    let url = rawUrl.trim();
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    const parsed = new URL(url);
+    return parsed.hostname.replace(/^www\./, '');
+  } catch {
+    return rawUrl.trim().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+  }
+}
+
+export function getInitials(nameOrDomain: string): string {
+  if (!nameOrDomain) return 'TTS';
+  const clean = nameOrDomain.trim().replace(/^https?:\/\//, '').replace(/^www\./, '').split('.')[0];
+  const parts = clean.split(/[\s_-]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase();
+}
+
+export interface SiteIdentityResult {
+  success: boolean;
+  domain: string;
+  title: string;
+  logoUrl: string | null;
+  appleTouchIcon?: string | null;
+  faviconUrl?: string | null;
+  ogImage?: string | null;
+}
+
+export async function fetchSiteIdentity(rawUrl: string): Promise<SiteIdentityResult> {
+  const domain = extractDomain(rawUrl);
+  const googleFavicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+
+  try {
+    const res = await fetch(`/api/extract-metadata?url=${encodeURIComponent(rawUrl)}`);
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        success: true,
+        domain: data.domain || domain,
+        title: data.title || domain,
+        logoUrl: data.logoUrl || googleFavicon,
+        appleTouchIcon: data.appleTouchIcon,
+        faviconUrl: data.faviconUrl || googleFavicon,
+        ogImage: data.ogImage,
+      };
+    }
+  } catch (e) {
+    console.warn('Could not fetch server-side metadata, using favicon fallback', e);
+  }
+
+  return {
+    success: true,
+    domain,
+    title: domain,
+    logoUrl: googleFavicon,
+    faviconUrl: googleFavicon,
+  };
+}
+

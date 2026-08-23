@@ -10,3 +10,5 @@ config.json
 transactions.json
 checkouts.json
 .vercel
+tsconfig.tsbuildinfo
+src/generated

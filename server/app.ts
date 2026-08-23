@@ -354,6 +354,134 @@ export function createApiApp() {
     }
   });
 
+  app.get("/api/extract-metadata", async (req, res) => {
+    try {
+      const rawUrl = String(req.query.url ?? "").trim();
+      if (!rawUrl) {
+        return res.status(400).json({ error: "URL is required" });
+      }
+
+      let targetUrl = rawUrl;
+      if (!/^https?:\/\//i.test(targetUrl)) {
+        targetUrl = `https://${targetUrl}`;
+      }
+
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(targetUrl);
+      } catch {
+        return res.status(400).json({ error: "Invalid URL format" });
+      }
+
+      const domain = parsedUrl.hostname;
+      const googleFavicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+        const response = await fetch(targetUrl, {
+          signal: controller.signal,
+          headers: {
+            "User-Agent": "Mozilla/5.0 (compatible; TakeTheSpotBot/1.0; +https://takethespot.lol)",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/*;q=0.8,*/*;q=0.7",
+          },
+          redirect: "follow",
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          return res.json({
+            success: true,
+            domain,
+            title: domain.replace(/^www\./, ""),
+            logoUrl: googleFavicon,
+            faviconUrl: googleFavicon,
+          });
+        }
+
+        const html = await response.text();
+
+        // Extract Title / Site Name
+        let title = "";
+        const ogSiteNameMatch = html.match(/<meta\s+[^>]*property=["']og:site_name["'][^>]*content=["']([^"']+)["']/i)
+          || html.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*property=["']og:site_name["']/i);
+        if (ogSiteNameMatch && ogSiteNameMatch[1]) {
+          title = ogSiteNameMatch[1].trim();
+        }
+
+        if (!title) {
+          const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+          if (titleMatch && titleMatch[1]) {
+            title = titleMatch[1].trim().split(/[|\-–—]/)[0].trim();
+          }
+        }
+
+        if (!title) {
+          title = domain.replace(/^www\./, "");
+        }
+
+        // Helper to resolve URL
+        const resolve = (rel: string) => {
+          try {
+            return new URL(rel, targetUrl).href;
+          } catch {
+            return null;
+          }
+        };
+
+        // Extract Apple Touch Icon
+        let appleTouchIcon: string | null = null;
+        const appleMatch = html.match(/<link\s+[^>]*rel=["'](?:apple-touch-icon|apple-touch-icon-precomposed)["'][^>]*href=["']([^"']+)["']/i)
+          || html.match(/<link\s+[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:apple-touch-icon|apple-touch-icon-precomposed)["']/i);
+        if (appleMatch && appleMatch[1]) {
+          appleTouchIcon = resolve(appleMatch[1]);
+        }
+
+        // Extract Favicon / Icon
+        let faviconUrl: string | null = null;
+        const iconMatch = html.match(/<link\s+[^>]*rel=["'](?:icon|shortcut icon)["'][^>]*href=["']([^"']+)["']/i)
+          || html.match(/<link\s+[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:icon|shortcut icon)["']/i);
+        if (iconMatch && iconMatch[1]) {
+          faviconUrl = resolve(iconMatch[1]);
+        }
+
+        // Extract OG Image
+        let ogImage: string | null = null;
+        const ogImageMatch = html.match(/<meta\s+[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
+          || html.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i);
+        if (ogImageMatch && ogImageMatch[1]) {
+          ogImage = resolve(ogImageMatch[1]);
+        }
+
+        // Selected best visual in priority order: apple touch icon > favicon > ogImage > google favicon
+        const bestVisual = appleTouchIcon || faviconUrl || ogImage || googleFavicon;
+
+        return res.json({
+          success: true,
+          domain,
+          title,
+          logoUrl: bestVisual,
+          appleTouchIcon,
+          faviconUrl: faviconUrl || googleFavicon,
+          ogImage,
+        });
+      } catch {
+        // Safe fallback if fetch fails or times out
+        return res.json({
+          success: true,
+          domain,
+          title: domain.replace(/^www\./, ""),
+          logoUrl: googleFavicon,
+          faviconUrl: googleFavicon,
+        });
+      }
+    } catch (e) {
+      console.error("extract-metadata error:", e);
+      return res.status(500).json({ error: "Failed to extract metadata" });
+    }
+  });
+
   app.post("/api/admin/login", handleAdminLogin);
 
   app.post("/api/admin/config", requireAdmin, async (req, res) => {

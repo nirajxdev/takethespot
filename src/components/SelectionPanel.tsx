@@ -1,6 +1,7 @@
 import { Plot, MarketConfig } from '../types.ts';
 import { formatCurrency } from '../utils.ts';
 import { motion, AnimatePresence } from 'motion/react';
+import { ArrowRight, X } from 'lucide-react';
 
 interface SelectionPanelProps {
   selectedIds: string[];
@@ -21,45 +22,59 @@ export default function SelectionPanel({ selectedIds, plots, onClear, onCheckout
     }
   }, 0);
 
+  const ctaLabel = selectedIds.length === 1 ? 'CLAIM THIS SPOT' : 'CLAIM THESE SPOTS';
+
   return (
     <AnimatePresence>
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 20 }}
-        className="bg-white border border-[#C9D7B5] shadow-2xl p-4 flex items-center gap-6"
+        initial={{ opacity: 0, y: 24, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 24, scale: 0.96 }}
+        transition={{ duration: 0.15, ease: 'easeOut' }}
+        className="bg-[#17351F] text-[#F5F8EC] border-2 border-[#C8E87A] shadow-[0_16px_48px_rgba(0,0,0,0.4)] rounded-sm p-3 sm:p-3.5 flex items-center justify-between gap-3 sm:gap-6 max-w-xl w-[calc(100vw-2rem)]"
       >
-        <div className="flex flex-col">
-          <span className="text-[10px] font-bold tracking-widest uppercase text-[#17351F]/50">
-            {selectedIds.length === 1 ? '1 Plot' : `${selectedIds.length} Plots`}
-          </span>
-          <span className="text-base font-mono font-bold text-[#17351F]">
-            {selectedIds.join(' · ')}
-          </span>
+        <div className="flex items-center gap-3 sm:gap-4 overflow-hidden min-w-0">
+          {/* Selected spots count & IDs */}
+          <div className="flex flex-col min-w-0">
+            <span className="text-[9px] font-mono font-bold tracking-widest uppercase text-[#C8E87A]">
+              SELECTED ({selectedIds.length} {selectedIds.length === 1 ? 'SPOT' : 'SPOTS'})
+            </span>
+            <span className="text-xs sm:text-sm font-mono font-black text-white truncate tracking-wide">
+              {selectedIds.join(' · ')}
+            </span>
+          </div>
+
+          <div className="w-px h-8 bg-white/20 shrink-0" />
+
+          {/* Total Cost */}
+          <div className="flex flex-col shrink-0">
+            <span className="text-[9px] font-mono font-bold tracking-widest uppercase text-white/60">TOTAL</span>
+            <span className="text-sm sm:text-base font-mono font-black text-[#C8E87A] leading-none mt-0.5">
+              {formatCurrency(totalCost)}
+            </span>
+          </div>
         </div>
 
-        <div className="w-px h-8 bg-[#C9D7B5]"></div>
-
-        <div className="flex flex-col">
-          <span className="text-[10px] font-bold tracking-widest uppercase text-[#17351F]/50">Total</span>
-          <span className="text-base font-mono font-bold text-[#17351F]">{formatCurrency(totalCost)}</span>
-        </div>
-
-        <div className="flex items-center gap-3 pl-2">
+        {/* Action Controls */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           <button 
             onClick={onClear}
-            className="text-[10px] uppercase font-bold tracking-widest text-[#17351F]/50 hover:text-[#17351F] transition-colors"
+            className="text-[10px] uppercase font-mono font-bold tracking-wider text-white/60 hover:text-white transition-colors px-2 py-1.5 flex items-center gap-1"
+            title="Clear selection"
           >
-            Clear
+            <X size={12} />
+            <span className="hidden sm:inline">CLEAR</span>
           </button>
           <button 
             onClick={onCheckout}
-            className="bg-[#C8E87A] text-[#17351F] px-6 py-3 text-xs font-black uppercase tracking-[0.1em] hover:bg-[#b5d36e] transition-colors shadow-sm whitespace-nowrap"
+            className="bg-[#C8E87A] text-[#17351F] px-4 sm:px-5 py-2.5 sm:py-3 text-[11px] sm:text-xs font-black uppercase tracking-[0.14em] hover:bg-[#b5d36e] active:scale-95 transition-all shadow-md rounded-xs whitespace-nowrap flex items-center gap-1.5 border border-[#17351F] cursor-pointer"
           >
-            TAKE THE SPOT
+            <span>{ctaLabel}</span>
+            <ArrowRight size={13} />
           </button>
         </div>
       </motion.div>
     </AnimatePresence>
   );
 }
+

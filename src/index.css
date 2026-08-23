@@ -4,3 +4,13 @@
   --font-serif: 'Playfair Display', ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
+/* Subtle archival paper texture / tactile matrix background */
+.bg-tactile {
+  background-color: #F5F8EC;
+  background-image: 
+    radial-gradient(#17351f08 1px, transparent 1px),
+    radial-gradient(#17351f04 1px, #f5f8ec 1px);
+  background-size: 24px 24px;
+  background-position: 0 0, 12px 12px;
+}
+
