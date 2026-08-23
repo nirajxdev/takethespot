@@ -438,8 +438,10 @@ export default function App() {
     updateMeta('meta[name="description"]', dynamicDesc);
     updateMeta('meta[property="og:title"]', dynamicTitle);
     updateMeta('meta[property="og:description"]', dynamicDesc);
+    updateMeta('meta[property="og:image"]', 'https://takethespot.lol/og.png');
     updateMeta('meta[name="twitter:title"]', dynamicTitle);
     updateMeta('meta[name="twitter:description"]', dynamicDesc);
+    updateMeta('meta[name="twitter:image"]', 'https://takethespot.lol/og.png');
   }, [claimedSpots, totalSpots, config]);
 
   const faqs = [
