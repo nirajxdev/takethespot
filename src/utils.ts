@@ -1,10 +1,11 @@
 import type { Plot } from './types.ts';
 
-export function formatCurrency(cents: number) {
+export function formatCurrency(cents: number | undefined | null) {
+  const num = typeof cents === 'number' && !Number.isNaN(cents) ? cents : 0;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-  }).format(cents / 100);
+  }).format(num / 100);
 }
 
 export function getUserId() {

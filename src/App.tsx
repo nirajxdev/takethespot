@@ -53,9 +53,9 @@ interface BoardStats {
   availableSpots: number;
   totalVolume: number;
   acquisitionsCount: number;
-  mostValuableSpots: { id: string; price: number; brandName?: string; takeoverPrice: number }[];
-  mostContestedSpots: { id: string; takeoverCount: number; brandName?: string; price: number }[];
-  recentBrands: { brandName: string; websiteUrl?: string; logo?: string; spotIds: string[] }[];
+  mostValuableSpots: { id: string; currentPrice?: number; price?: number; brandName?: string; takeoverPrice?: number }[];
+  mostContestedSpots: { id: string; acquisitionsCount?: number; takeoverCount?: number; brandName?: string; currentPrice?: number; price?: number }[];
+  recentBrands: { id?: string; brandName: string; websiteUrl?: string | null; logo?: string | null; spotsCount?: number; spotIds?: string[] }[];
 }
 
 export default function App() {
@@ -464,7 +464,7 @@ export default function App() {
   const hasContestedSpots = Boolean(
     boardStats?.mostContestedSpots &&
       boardStats.mostContestedSpots.length > 0 &&
-      boardStats.mostContestedSpots.some((s) => s.takeoverCount > 0),
+      boardStats.mostContestedSpots.some((s) => (s.acquisitionsCount || s.takeoverCount || 0) > 0),
   );
 
   useEffect(() => {
@@ -832,9 +832,11 @@ export default function App() {
                               </span>
                             </div>
                             <div className="text-right">
-                              <span className="font-black text-[#17351F] block">{formatCurrency(spot.price)}</span>
+                              <span className="font-black text-[#17351F] block">
+                                {formatCurrency(spot.currentPrice ?? spot.price ?? 100)}
+                              </span>
                               <span className="text-[8px] text-[#D97706] block">
-                                Takeover: {formatCurrency(spot.takeoverPrice)}
+                                Takeover: {formatCurrency(spot.takeoverPrice ?? Math.round((spot.currentPrice ?? spot.price ?? 100) * 2.5))}
                               </span>
                             </div>
                           </div>
@@ -877,9 +879,11 @@ export default function App() {
                             </div>
                             <div className="text-right">
                               <span className="font-black text-[#D97706] block">
-                                {spot.takeoverCount} takeover{spot.takeoverCount === 1 ? '' : 's'}
+                                {spot.acquisitionsCount ?? spot.takeoverCount ?? 0} takeover{(spot.acquisitionsCount ?? spot.takeoverCount ?? 0) === 1 ? '' : 's'}
                               </span>
-                              <span className="text-[8px] text-[#17351F]/60 block">{formatCurrency(spot.price)}</span>
+                              <span className="text-[8px] text-[#17351F]/60 block">
+                                {formatCurrency(spot.currentPrice ?? spot.price ?? 100)}
+                              </span>
                             </div>
                           </div>
                         ))}
@@ -932,8 +936,8 @@ export default function App() {
                     </div>
 
                     <div className="text-[9px] font-mono text-[#17351F]/70 mb-2 truncate">
-                      Spots: {brand.spotIds.slice(0, 3).join(', ')}
-                      {brand.spotIds.length > 3 ? ` +${brand.spotIds.length - 3}` : ''}
+                      Spots: {brand.spotIds && brand.spotIds.length > 0 ? brand.spotIds.slice(0, 3).join(', ') : `${brand.spotsCount || 1} spot`}
+                      {brand.spotIds && brand.spotIds.length > 3 ? ` +${brand.spotIds.length - 3}` : ''}
                     </div>
 
                     {brand.websiteUrl ? (
@@ -1213,10 +1217,12 @@ export default function App() {
           />
         )}
 
-        <RulesModal
-          isOpen={isRulesModalOpen}
-          onClose={() => setIsRulesModalOpen(false)}
-        />
+        {isRulesModalOpen && (
+          <RulesModal
+            isOpen={isRulesModalOpen}
+            onClose={() => setIsRulesModalOpen(false)}
+          />
+        )}
 
         {isSuccessModalOpen && purchaseDetails && (
           <SuccessModal

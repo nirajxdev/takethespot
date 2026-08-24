@@ -628,6 +628,7 @@ export function createApiApp() {
         logo: string | null;
         websiteUrl: string | null;
         spotsCount: number;
+        spotIds: string[];
         purchasedAt: string | null;
       }[] = [];
 
@@ -650,6 +651,7 @@ export function createApiApp() {
           logo: first.logo,
           websiteUrl: first.websiteUrl,
           spotsCount: group.length,
+          spotIds: group.map((p) => p.id),
           purchasedAt: first.purchasedAt,
         });
       }
@@ -667,6 +669,7 @@ export function createApiApp() {
         availableSpots,
         totalVolume,
         totalAcquisitions,
+        acquisitionsCount: totalAcquisitions,
         mostValuableSpots,
         mostContestedSpots,
         recentBrands: recentBrands.slice(0, 12),
