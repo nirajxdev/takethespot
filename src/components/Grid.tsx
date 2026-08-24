@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Plot, MarketConfig } from '../types.ts';
 import PlotSquare from './PlotSquare.tsx';
 import { getDaysLeft, formatCurrency } from '../utils.ts';
 import { createPortal } from 'react-dom';
+import { ZoomIn, ZoomOut, Maximize2, Move } from 'lucide-react';
 
 export interface ExtendedPlot extends Plot {
   isMerged?: boolean;
@@ -23,6 +24,96 @@ interface GridProps {
 export default function Grid({ plots, selectedPlots, onPlotClick, config, isLoading = false }: GridProps) {
   const [hoveredPlot, setHoveredPlot] = useState<Plot | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+
+  // Zoom modes: 'fit' (entire board fits on screen), or number (1 = 100%, 1.4 = 140%, 1.8 = 180%)
+  const [zoomLevel, setZoomLevel] = useState<'fit' | number>('fit');
+  const [isMobile, setIsMobile] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const touchStartDistRef = useRef<number | null>(null);
+  const touchStartZoomRef = useRef<number>(1);
+
+  // Detect touch device and screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
+      
+      // Default to 'fit' on mobile & desktop initially for instant full view
+      if (mobile && zoomLevel === 'fit') {
+        // keep fit
+      }
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Handle pinch to zoom on touch
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      touchStartDistRef.current = dist;
+      touchStartZoomRef.current = zoomLevel === 'fit' ? (isMobile ? 0.75 : 1) : zoomLevel;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchStartDistRef.current !== null) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const factor = dist / touchStartDistRef.current;
+      const newZoom = Math.min(2.2, Math.max(0.6, touchStartZoomRef.current * factor));
+      setZoomLevel(Math.round(newZoom * 10) / 10);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchStartDistRef.current = null;
+  };
+
+  // Zoom control helpers
+  const handleZoomIn = () => {
+    if (zoomLevel === 'fit') {
+      setZoomLevel(isMobile ? 1.25 : 1.25);
+    } else {
+      setZoomLevel(prev => Math.min(2.2, (typeof prev === 'number' ? prev : 1) + 0.25));
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (zoomLevel === 'fit') {
+      // already at fit
+      return;
+    } else {
+      const current = typeof zoomLevel === 'number' ? zoomLevel : 1;
+      if (current <= 0.8) {
+        setZoomLevel('fit');
+      } else {
+        setZoomLevel(prev => Math.max(0.6, (typeof prev === 'number' ? prev : 1) - 0.25));
+      }
+    }
+  };
+
+  const handleToggleFit = () => {
+    if (zoomLevel === 'fit') {
+      setZoomLevel(1.3);
+    } else {
+      setZoomLevel('fit');
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
+      }
+    }
+  };
 
   // Sort plots by row and col
   const sortedPlots = [...plots].sort((a, b) => {
@@ -109,27 +200,101 @@ export default function Grid({ plots, selectedPlots, onPlotClick, config, isLoad
   const colHeaders = Array.from({ length: config.totalColumns }, (_, i) => i + 1);
   const rowHeaders = Array.from({ length: config.totalRows }, (_, i) => String.fromCharCode(65 + i));
 
+  // Determine board width style based on zoomLevel
+  const getBoardContainerStyle = () => {
+    if (zoomLevel === 'fit') {
+      return {
+        width: '100%',
+        minWidth: '0px',
+      };
+    }
+    const multiplier = typeof zoomLevel === 'number' ? zoomLevel : 1;
+    const baseWidth = isMobile ? 680 : 960;
+    return {
+      width: `${baseWidth * multiplier}px`,
+      minWidth: `${baseWidth * multiplier}px`,
+    };
+  };
+
   return (
-    <>
+    <div className="w-full flex-1 flex flex-col items-center justify-center relative px-1 sm:px-3 py-0 sm:py-1">
+      {/* Mobile-Only Zoom / View Control Toolbar (Hidden on Laptop & Desktop) */}
+      <div className="w-full max-w-[96vw] flex md:hidden items-center justify-between mb-1 px-1 select-none">
+        {/* Left: Mobile Navigation Hint */}
+        <div className="flex items-center gap-1 text-[9px] font-mono text-[#17351F]/70 font-bold">
+          <Move size={11} className="shrink-0 text-[#17351F]/50" />
+          <span>
+            {zoomLevel === 'fit' ? 'FULL BOARD · TAP + TO ZOOM' : 'ZOOMED · SWIPE TO PAN'}
+          </span>
+        </div>
+
+        {/* Right: Zoom Action Buttons */}
+        <div className="flex items-center gap-0.5 bg-white border border-[#C9D7B5] p-0.5 rounded-sm shadow-2xs">
+          <button
+            type="button"
+            onClick={handleZoomOut}
+            disabled={zoomLevel === 'fit'}
+            className="p-1 rounded-xs hover:bg-[#F5F8EC] text-[#17351F] disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+            title="Zoom out"
+            aria-label="Zoom out"
+          >
+            <ZoomOut size={12} />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleToggleFit}
+            className={`px-1.5 py-0.5 rounded-xs text-[8px] font-mono font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+              zoomLevel === 'fit'
+                ? 'bg-[#17351F] text-[#C8E87A]'
+                : 'bg-[#F5F8EC] text-[#17351F] hover:bg-[#E2ECD2]'
+            }`}
+            title={zoomLevel === 'fit' ? 'Switch to Zoomed Detail' : 'Fit Entire Board to Screen'}
+          >
+            {zoomLevel === 'fit' ? 'FIT' : typeof zoomLevel === 'number' ? `${Math.round(zoomLevel * 100)}%` : 'FIT'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleZoomIn}
+            disabled={typeof zoomLevel === 'number' && zoomLevel >= 2.2}
+            className="p-1 rounded-xs hover:bg-[#F5F8EC] text-[#17351F] disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+            title="Zoom in"
+            aria-label="Zoom in"
+          >
+            <ZoomIn size={12} />
+          </button>
+        </div>
+      </div>
+
+      {/* Main Scrollable Viewport Wrapper */}
       <div 
-        className="w-full flex-1 flex flex-col items-center justify-center p-1 sm:p-2 md:p-3 overflow-x-auto"
+        ref={scrollContainerRef}
+        className="w-full max-w-[96vw] xl:max-w-[1360px] 2xl:max-w-[1440px] overflow-x-auto overflow-y-hidden rounded-sm border-2 border-[#17351F] bg-white shadow-[0_8px_30px_rgba(23,53,31,0.08)] touch-pan-x"
+        onScroll={() => setHasScrolled(true)}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         onMouseMove={(e) => {
-          if (hoveredPlot) {
+          if (!isTouchDevice && hoveredPlot) {
             setMousePos({ x: e.clientX, y: e.clientY });
           }
         }}
       >
-        <div className="min-w-[720px] md:min-w-0 w-full max-w-[92vw] xl:max-w-[1340px] 2xl:max-w-[1420px] mx-auto border-2 border-[#17351F] bg-white shadow-[0_12px_36px_rgba(23,53,31,0.1)] rounded-sm overflow-hidden flex flex-col">
+        <div 
+          className="mx-auto flex flex-col transition-[width] duration-150 ease-out"
+          style={getBoardContainerStyle()}
+        >
           {/* Top Column Coordinate Header */}
           <div 
-            className="grid bg-[#17351F] text-[#C8E87A] text-[8px] sm:text-[9px] md:text-[10px] font-mono font-bold py-1 border-b border-[#17351F] select-none"
+            className="grid bg-[#17351F] text-[#C8E87A] text-[7px] sm:text-[9px] md:text-[10px] font-mono font-bold py-0.5 sm:py-1 border-b border-[#17351F] select-none"
             style={{ 
-              gridTemplateColumns: `26px repeat(${config.totalColumns}, minmax(0, 1fr))` 
+              gridTemplateColumns: `20px repeat(${config.totalColumns}, minmax(0, 1fr))` 
             }}
           >
-            <div className="flex items-center justify-center text-[#F5F8EC]/40 text-[7px] sm:text-[8px]">#</div>
+            <div className="flex items-center justify-center text-[#F5F8EC]/40 text-[6px] sm:text-[8px]">#</div>
             {colHeaders.map(num => (
-              <div key={`col-head-${num}`} className="text-center font-mono">
+              <div key={`col-head-${num}`} className="text-center font-mono leading-none py-0.5">
                 {num}
               </div>
             ))}
@@ -139,7 +304,7 @@ export default function Grid({ plots, selectedPlots, onPlotClick, config, isLoad
           <div className="flex w-full">
             {/* Row Letter Axis */}
             <div 
-              className="w-6.5 shrink-0 bg-[#17351F] text-[#F5F8EC]/90 text-[8px] sm:text-[10px] md:text-[11px] font-mono font-bold grid select-none border-r border-[#17351F]"
+              className="w-5 sm:w-6.5 shrink-0 bg-[#17351F] text-[#F5F8EC]/90 text-[7px] sm:text-[10px] md:text-[11px] font-mono font-bold grid select-none border-r border-[#17351F]"
               style={{ 
                 gridTemplateRows: `repeat(${config.totalRows}, minmax(0, 1fr))` 
               }}
@@ -151,8 +316,12 @@ export default function Grid({ plots, selectedPlots, onPlotClick, config, isLoad
               ))}
             </div>
 
-            {/* Main Interactive Grid - Taller Block Proportions for Logos */}
-            <div className="flex-1 w-full h-[58vh] sm:h-[62vh] max-h-[calc(100dvh-13rem)] min-h-[460px] sm:min-h-[520px] md:min-h-[580px] bg-[#C9D7B5] overflow-hidden">
+            {/* Main Interactive Grid */}
+            <div className={`flex-1 w-full bg-[#C9D7B5] overflow-hidden ${
+              zoomLevel === 'fit'
+                ? 'aspect-[24/11] sm:aspect-[24/11.5] min-h-[220px] sm:min-h-[360px] md:min-h-[460px] max-h-[calc(100dvh-14rem)]'
+                : 'h-[360px] sm:h-[480px] md:h-[560px]'
+            }`}>
               <div 
                 className="grid gap-[1px] bg-[#C9D7B5] w-full h-full" 
                 style={{ 
@@ -172,7 +341,7 @@ export default function Grid({ plots, selectedPlots, onPlotClick, config, isLoad
                         className="w-full h-full bg-[#FAFDF5] flex items-center justify-center animate-pulse"
                         style={{ animationDelay: `${delay}s`, animationDuration: '1.2s' }}
                       >
-                        <div className="w-3 h-1 bg-[#C9D7B5]/40 rounded-full" />
+                        <div className="w-2 sm:w-3 h-1 bg-[#C9D7B5]/40 rounded-full" />
                       </div>
                     );
                   })
@@ -185,15 +354,18 @@ export default function Grid({ plots, selectedPlots, onPlotClick, config, isLoad
                       isMerged={plot.isMerged}
                       colSpan={plot.colSpan}
                       rowSpan={plot.rowSpan}
+                      isFitMode={zoomLevel === 'fit' && isMobile}
                       isSelected={selectedPlots.includes(plot.id) || (plot.mergedIds?.some(id => selectedPlots.includes(id)) || false)}
                       onClick={() => onPlotClick(plot, plot.mergedPlots)}
                       onMouseEnter={(e) => {
-                        if (plot.status === 'owned') {
+                        if (!isTouchDevice && plot.status === 'owned') {
                           setHoveredPlot(plot);
                           setMousePos({ x: e.clientX, y: e.clientY });
                         }
                       }}
-                      onMouseLeave={() => setHoveredPlot(null)}
+                      onMouseLeave={() => {
+                        if (!isTouchDevice) setHoveredPlot(null);
+                      }}
                     />
                   ))
                 )}
@@ -203,7 +375,8 @@ export default function Grid({ plots, selectedPlots, onPlotClick, config, isLoad
         </div>
       </div>
 
-      {hoveredPlot && hoveredPlot.status === 'owned' && createPortal(
+      {/* Non-touch Desktop Hover Tooltip */}
+      {!isTouchDevice && hoveredPlot && hoveredPlot.status === 'owned' && createPortal(
         <div 
           className="fixed pointer-events-none z-50 bg-[#17351F] text-[#F5F8EC] p-3 rounded-sm shadow-2xl border border-[#C8E87A]/40 transform -translate-x-1/2 -translate-y-[calc(100%+14px)] min-w-[200px] max-w-[260px]"
           style={{ left: mousePos.x, top: mousePos.y }}
@@ -243,7 +416,7 @@ export default function Grid({ plots, selectedPlots, onPlotClick, config, isLoad
         </div>,
         document.body
       )}
-    </>
+    </div>
   );
 }
 

@@ -147,36 +147,36 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#111511]/80 backdrop-blur-sm">
-      <div className="bg-[#F5F8EC] w-full max-w-4xl max-h-[80vh] rounded-sm shadow-xl flex flex-col border border-[#C9D7B5]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-[#111511]/80 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-[#F5F8EC] w-full max-w-4xl max-h-[92dvh] rounded-sm shadow-xl flex flex-col border border-[#C9D7B5] my-auto">
         
-        <div className="flex justify-between items-center p-6 border-b border-[#C9D7B5] bg-white rounded-t-sm">
-          <div className="flex items-center gap-6">
-            <h2 className="text-xl font-black text-[#17351F] uppercase tracking-widest font-serif">Admin Panel</h2>
-            <div className="flex gap-4">
+        <div className="flex justify-between items-center p-4 sm:p-6 border-b border-[#C9D7B5] bg-white rounded-t-sm shrink-0">
+          <div className="flex items-center gap-3 sm:gap-6">
+            <h2 className="text-base sm:text-xl font-black text-[#17351F] uppercase tracking-widest font-serif">Admin Panel</h2>
+            <div className="flex gap-2 sm:gap-4">
               <button 
                 onClick={() => setActiveTab('plots')}
-                className={`text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'plots' ? 'text-[#17351F] underline decoration-[#C8E87A] underline-offset-4' : 'text-[#17351F]/50 hover:text-[#17351F]'}`}
+                className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${activeTab === 'plots' ? 'text-[#17351F] underline decoration-[#C8E87A] underline-offset-4' : 'text-[#17351F]/50 hover:text-[#17351F]'}`}
               >
                 Database
               </button>
               <button 
                 onClick={() => setActiveTab('config')}
-                className={`text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'config' ? 'text-[#17351F] underline decoration-[#C8E87A] underline-offset-4' : 'text-[#17351F]/50 hover:text-[#17351F]'}`}
+                className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${activeTab === 'config' ? 'text-[#17351F] underline decoration-[#C8E87A] underline-offset-4' : 'text-[#17351F]/50 hover:text-[#17351F]'}`}
               >
                 Market Config
               </button>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <button onClick={handleLogout} className="text-[10px] uppercase font-bold tracking-wider text-[#17351F]/60 hover:text-[#17351F]">Logout</button>
-            <button onClick={onClose} className="text-[#17351F]/40 hover:text-[#17351F] transition-colors p-1">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          <div className="flex items-center gap-3 sm:gap-4">
+            <button onClick={handleLogout} className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-[#17351F]/60 hover:text-[#17351F] cursor-pointer">Logout</button>
+            <button onClick={onClose} className="text-[#17351F]/40 hover:text-[#17351F] transition-colors p-1 cursor-pointer">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto p-4 sm:p-6">
           {isLoading ? (
             <div className="w-full h-32 flex items-center justify-center">
               <div className="w-8 h-8 border-4 border-[#C9D7B5] border-t-[#17351F] rounded-full animate-spin"></div>

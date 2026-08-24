@@ -163,19 +163,19 @@ export default function PurchaseModal({ selectedIds, plots, config, onClose, onP
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#111511]/70 backdrop-blur-xs overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-[#111511]/70 backdrop-blur-xs overflow-y-auto">
       <motion.div 
         initial={{ opacity: 0, scale: 0.96, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white w-full max-w-md rounded-sm shadow-2xl overflow-hidden my-auto border-2 border-[#17351F]"
+        className="bg-white w-full max-w-md max-h-[92dvh] rounded-sm shadow-2xl overflow-hidden my-auto border-2 border-[#17351F] flex flex-col"
       >
         {/* Header */}
-        <div className="px-5 py-3.5 bg-[#17351F] text-[#F5F8EC] flex items-center justify-between">
+        <div className="px-4 sm:px-5 py-3 sm:py-3.5 bg-[#17351F] text-[#F5F8EC] flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-xs sm:text-sm font-black uppercase tracking-[0.16em] text-[#C8E87A]">
               Claim Your Spot
             </h2>
-            <p className="text-[10px] text-[#F5F8EC]/70 font-mono uppercase tracking-widest mt-0.5">
+            <p className="text-[9px] sm:text-[10px] text-[#F5F8EC]/70 font-mono uppercase tracking-widest mt-0.5">
               {selectedIds.length === 1 ? `Spot ${selectedIds[0]}` : `${selectedIds.length} Spots (${selectedIds.join(' · ')})`} · $1 each
             </p>
           </div>
@@ -188,7 +188,7 @@ export default function PurchaseModal({ selectedIds, plots, config, onClose, onP
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-3.5 sm:p-5 space-y-3 sm:space-y-4 overflow-y-auto">
           {/* STEP 1: Website / Link */}
           <div>
             <div className="flex justify-between items-baseline mb-1">

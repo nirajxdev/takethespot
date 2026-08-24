@@ -46,15 +46,15 @@ export default function TakeoverModal({ plots, config, onClose, onAcquire }: Tak
   }, [primaryPlot.expiresAt]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#111511]/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#111511]/60 backdrop-blur-sm overflow-y-auto">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white w-full max-w-sm rounded-sm shadow-xl overflow-hidden relative border border-[#C9D7B5]"
+        className="bg-white w-full max-w-sm max-h-[92dvh] overflow-y-auto rounded-sm shadow-xl relative border border-[#C9D7B5] my-auto"
       >
         <button 
           onClick={onClose} 
-          className="absolute top-4 right-4 text-[#17351F]/40 hover:text-[#17351F] transition-colors p-1"
+          className="absolute top-3 right-3 text-[#17351F]/40 hover:text-[#17351F] transition-colors p-1 cursor-pointer"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -62,7 +62,7 @@ export default function TakeoverModal({ plots, config, onClose, onAcquire }: Tak
           </svg>
         </button>
 
-        <div className="p-8 flex flex-col items-center text-center">
+        <div className="p-5 sm:p-8 flex flex-col items-center text-center">
           {primaryPlot.logo ? (
             <div className="w-20 h-20 rounded-sm border border-[#C9D7B5] p-2 shadow-sm mb-4 bg-[#F5F8EC] flex items-center justify-center">
               <img src={primaryPlot.logo} alt={primaryPlot.brandName || "Logo"} className="max-w-full max-h-full object-contain" />

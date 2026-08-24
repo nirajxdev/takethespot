@@ -28,16 +28,16 @@ export default function PaymentModal({ amount, plots, brandName, onPay, onCancel
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#111511]/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#111511]/60 backdrop-blur-sm overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white w-full max-w-sm rounded-sm shadow-xl overflow-hidden relative border border-[#C9D7B5] p-6 sm:p-8 flex flex-col"
+        className="bg-white w-full max-w-sm max-h-[92dvh] overflow-y-auto rounded-sm shadow-xl relative border border-[#C9D7B5] p-5 sm:p-8 flex flex-col my-auto"
       >
         <button
           onClick={onCancel}
           disabled={isProcessing}
-          className="absolute top-4 right-4 text-[#17351F]/40 hover:text-[#17351F] transition-colors p-1 disabled:opacity-50 z-10"
+          className="absolute top-3 right-3 text-[#17351F]/40 hover:text-[#17351F] transition-colors p-1 disabled:opacity-50 z-10 cursor-pointer"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>

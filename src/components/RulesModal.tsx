@@ -9,7 +9,7 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -21,9 +21,9 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="relative w-full max-w-lg bg-[#FAFDF5] rounded-sm shadow-2xl border-2 border-[#17351F] overflow-hidden"
+            className="relative w-full max-w-lg max-h-[92dvh] overflow-y-auto bg-[#FAFDF5] rounded-sm shadow-2xl border-2 border-[#17351F] my-auto"
           >
-            <div className="p-6 sm:p-8">
+            <div className="p-5 sm:p-8">
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-[#C9D7B5]">
                 <div>
                   <h2 className="text-lg font-black uppercase tracking-[0.15em] text-[#17351F]">

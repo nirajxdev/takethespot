@@ -216,11 +216,11 @@ export default function SuccessModal({ plots, brandName, onClose }: SuccessModal
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#111511]/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#111511]/60 backdrop-blur-sm overflow-y-auto">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-[#C8E87A] w-full max-w-sm rounded-sm shadow-xl overflow-hidden relative border border-[#17351F] p-8 text-center"
+        className="bg-[#C8E87A] w-full max-w-sm max-h-[92dvh] overflow-y-auto rounded-sm shadow-xl relative border border-[#17351F] p-6 sm:p-8 text-center my-auto"
       >
         <div className="w-16 h-16 bg-[#17351F] text-[#C8E87A] rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">

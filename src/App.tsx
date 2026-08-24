@@ -476,16 +476,16 @@ export default function App() {
       <Analytics />
 
       {/* 1. TOP NAVBAR */}
-      <header className="sticky top-0 w-full h-15 bg-white/95 backdrop-blur-md border-b border-[#C9D7B5] flex items-center justify-between px-4 sm:px-8 shrink-0 z-40 shadow-xs">
-        <div className="flex items-center gap-3">
-          <a href="/" className="flex items-center gap-2.5 group">
+      <header className="sticky top-0 w-full h-13 sm:h-15 bg-white/95 backdrop-blur-md border-b border-[#C9D7B5] flex items-center justify-between px-2.5 sm:px-8 shrink-0 z-40 shadow-xs">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <a href="/" className="flex items-center gap-2 group">
             <img
               src="/logo.png"
               alt="TakeTheSpot Logo"
-              className="h-8.5 w-auto rounded-sm border border-[#17351F]/10 group-hover:scale-105 transition-transform"
+              className="h-7 sm:h-8.5 w-auto rounded-sm border border-[#17351F]/10 group-hover:scale-105 transition-transform"
             />
             <div className="flex flex-col">
-              <span className="text-xs sm:text-sm font-black uppercase tracking-[0.18em] text-[#17351F] font-serif leading-none">
+              <span className="text-[11px] sm:text-sm font-black uppercase tracking-[0.14em] sm:tracking-[0.18em] text-[#17351F] font-serif leading-none">
                 Take The Spot
               </span>
               <span className="text-[9px] text-[#17351F]/60 tracking-wider hidden md:block">
@@ -495,10 +495,10 @@ export default function App() {
           </a>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-1.5 sm:gap-4">
           {/* Live Scarcity Counter */}
-          <div className="flex items-center gap-1.5 bg-[#FAFDF5] border border-[#C9D7B5] px-2.5 py-1 rounded-sm text-[9px] sm:text-[10px] font-mono font-bold text-[#17351F]">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+          <div className="flex items-center gap-1 sm:gap-1.5 bg-[#FAFDF5] border border-[#C9D7B5] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-sm text-[8px] sm:text-[10px] font-mono font-bold text-[#17351F]">
+            <span className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             <span className="hidden sm:inline">{claimedSpots} / {totalSpots} TAKEN</span>
             <span className="sm:hidden">{claimedSpots}/{totalSpots}</span>
             <span className="text-[#17351F]/40 hidden sm:inline">·</span>
@@ -508,9 +508,9 @@ export default function App() {
           {/* How It Works Button */}
           <button
             onClick={() => setIsRulesModalOpen(true)}
-            className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#17351F] hover:text-[#2a5a35] hover:bg-[#F5F8EC] px-2.5 sm:px-3 py-1.5 rounded-sm transition-colors border border-transparent hover:border-[#C9D7B5] cursor-pointer"
+            className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-[#17351F] hover:text-[#2a5a35] hover:bg-[#F5F8EC] px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-sm transition-colors border border-transparent hover:border-[#C9D7B5] cursor-pointer"
           >
-            How It Works
+            Rules
           </button>
 
           {/* FAQ Anchor Link */}
@@ -524,46 +524,46 @@ export default function App() {
           {/* Primary CTA Button */}
           <button
             onClick={handleClaimClick}
-            className="bg-[#C8E87A] text-[#17351F] hover:bg-[#b5d36e] active:scale-95 text-[10px] sm:text-xs font-black uppercase tracking-[0.14em] px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-sm transition-all shadow-sm flex items-center gap-1.5 border border-[#17351F] cursor-pointer"
+            className="bg-[#C8E87A] text-[#17351F] hover:bg-[#b5d36e] active:scale-95 text-[9px] sm:text-xs font-black uppercase tracking-[0.1em] sm:tracking-[0.14em] px-2.5 sm:px-4 py-1 sm:py-2 rounded-sm transition-all shadow-sm flex items-center gap-1 sm:gap-1.5 border border-[#17351F] cursor-pointer"
           >
-            <span>Claim a Spot</span>
-            <ArrowRight size={13} className="shrink-0" />
+            <span>Claim Spot</span>
+            <ArrowRight size={12} className="shrink-0" />
           </button>
         </div>
       </header>
 
       {/* Persistence Warning Banner */}
       {persistenceWarning && (
-        <div className="w-full bg-[#111511] text-[#C8E87A] text-[10px] sm:text-xs uppercase tracking-wider text-center py-2 px-4 shadow-sm border-b border-[#C8E87A]/20">
+        <div className="w-full bg-[#111511] text-[#C8E87A] text-[9px] sm:text-xs uppercase tracking-wider text-center py-1.5 sm:py-2 px-3 sm:px-4 shadow-sm border-b border-[#C8E87A]/20">
           {persistenceWarning}
         </div>
       )}
 
-      {/* HERO VIEWPORT CONTAINER - Fits cleanly on screen with balanced margins */}
-      <div className="min-h-[calc(100dvh-4.25rem)] flex flex-col justify-between">
+      {/* HERO VIEWPORT CONTAINER */}
+      <div className="flex flex-col justify-start md:justify-between md:min-h-[calc(100dvh-4.25rem)]">
         {/* 2. COMPACT INTRO ABOVE THE GRID */}
-        <section className="w-full max-w-[94vw] xl:max-w-[1360px] 2xl:max-w-[1440px] mx-auto px-2 sm:px-4 pt-2.5 sm:pt-3 pb-1 shrink-0">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pb-2 border-b border-[#C9D7B5]/60">
-            <div className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4">
-              <h1 className="text-2xl sm:text-3xl lg:text-[38px] font-black uppercase tracking-tight text-[#17351F] font-serif leading-none shrink-0">
+        <section className="w-full max-w-[96vw] xl:max-w-[1360px] 2xl:max-w-[1440px] mx-auto px-1.5 sm:px-4 pt-1.5 sm:pt-3 pb-0.5 sm:pb-1 shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2.5 pb-1 sm:pb-2 border-b border-[#C9D7B5]/60">
+            <div className="flex items-baseline justify-between sm:justify-start gap-2 sm:gap-4">
+              <h1 className="text-base sm:text-3xl lg:text-[38px] font-black uppercase tracking-tight text-[#17351F] font-serif leading-none shrink-0">
                 Take Your Spot.
               </h1>
-              <p className="text-xs sm:text-sm text-[#17351F]/80 font-medium">
-                Claim one of 288 permanent spots on this shared internet board.
+              <p className="text-[10px] sm:text-sm text-[#17351F]/80 font-medium">
+                Claim 1 of 288 permanent spots.
               </p>
             </div>
 
-            <div className="flex items-center gap-2.5 shrink-0">
-              <div className="bg-white border border-[#C9D7B5] px-2.5 py-1 rounded-sm text-[10px] font-mono font-bold text-[#17351F]">
+            <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+              <div className="bg-white border border-[#C9D7B5] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-sm text-[9px] sm:text-[10px] font-mono font-bold text-[#17351F]">
                 $1.00 <span className="text-[#17351F]/50 font-normal">/ spot</span>
               </div>
 
               <button
                 onClick={handleClaimClick}
-                className="bg-[#17351F] text-[#C8E87A] hover:bg-[#234e2e] active:scale-95 text-[11px] font-black uppercase tracking-[0.14em] px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-sm transition-all shadow-sm flex items-center gap-1.5 border border-[#17351F] cursor-pointer"
+                className="bg-[#17351F] text-[#C8E87A] hover:bg-[#234e2e] active:scale-95 text-[9px] sm:text-[11px] font-black uppercase tracking-[0.12em] sm:tracking-[0.14em] px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-sm transition-all shadow-sm flex items-center gap-1 sm:gap-1.5 border border-[#17351F] cursor-pointer"
               >
                 <span>Pick a Spot</span>
-                <ArrowRight size={13} />
+                <ArrowRight size={12} />
               </button>
             </div>
           </div>
@@ -575,69 +575,69 @@ export default function App() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden mt-2"
+                className="overflow-hidden mt-1 sm:mt-2"
               >
-                <div className="bg-[#FAFDF5] border-2 border-[#17351F] rounded-sm p-2.5 sm:p-3 relative shadow-sm">
+                <div className="bg-[#FAFDF5] border-2 border-[#17351F] rounded-sm p-2 sm:p-3 relative shadow-sm">
                   <button
                     onClick={dismissOnboarding}
-                    className="absolute top-2 right-2 text-[#17351F]/50 hover:text-[#17351F] p-1 rounded-sm cursor-pointer"
+                    className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 text-[#17351F]/50 hover:text-[#17351F] p-1 rounded-sm cursor-pointer"
                     title="Dismiss guide"
                   >
-                    <X size={14} />
+                    <X size={13} />
                   </button>
 
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-[9px] font-black uppercase tracking-[0.16em] bg-[#C8E87A] text-[#17351F] px-2 py-0.5 rounded-xs border border-[#17351F]">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-[0.16em] bg-[#C8E87A] text-[#17351F] px-1.5 py-0.5 rounded-xs border border-[#17351F]">
                       Quick Start
                     </span>
-                    <span className="text-[11px] font-bold text-[#17351F]">How it works:</span>
+                    <span className="text-[10px] sm:text-[11px] font-bold text-[#17351F]">How it works:</span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <div className="bg-white border border-[#C9D7B5] p-2 rounded-sm">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5 sm:gap-2">
+                    <div className="bg-white border border-[#C9D7B5] p-1.5 sm:p-2 rounded-sm">
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="w-4 h-4 rounded-xs bg-[#17351F] text-[#C8E87A] font-mono font-bold text-[9px] flex items-center justify-center">
+                        <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-xs bg-[#17351F] text-[#C8E87A] font-mono font-bold text-[8px] sm:text-[9px] flex items-center justify-center">
                           01
                         </span>
-                        <h4 className="text-[11px] font-black uppercase tracking-wider text-[#17351F]">Pick Any Spot</h4>
+                        <h4 className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-[#17351F]">Pick Any Spot</h4>
                       </div>
-                      <p className="text-[10px] text-[#17351F]/70 leading-snug">
+                      <p className="text-[9px] sm:text-[10px] text-[#17351F]/70 leading-snug">
                         Click any available square below. You can select up to 12 adjacent squares.
                       </p>
                     </div>
 
-                    <div className="bg-white border border-[#C9D7B5] p-2 rounded-sm">
+                    <div className="bg-white border border-[#C9D7B5] p-1.5 sm:p-2 rounded-sm">
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="w-4 h-4 rounded-xs bg-[#17351F] text-[#C8E87A] font-mono font-bold text-[9px] flex items-center justify-center">
+                        <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-xs bg-[#17351F] text-[#C8E87A] font-mono font-bold text-[8px] sm:text-[9px] flex items-center justify-center">
                           02
                         </span>
-                        <h4 className="text-[11px] font-black uppercase tracking-wider text-[#17351F]">Make It Yours</h4>
+                        <h4 className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-[#17351F]">Make It Yours</h4>
                       </div>
-                      <p className="text-[10px] text-[#17351F]/70 leading-snug">
+                      <p className="text-[9px] sm:text-[10px] text-[#17351F]/70 leading-snug">
                         Add your project link or name. We auto-detect your logo. Custom upload is optional.
                       </p>
                     </div>
 
-                    <div className="bg-white border border-[#C9D7B5] p-2 rounded-sm">
+                    <div className="bg-white border border-[#C9D7B5] p-1.5 sm:p-2 rounded-sm">
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="w-4 h-4 rounded-xs bg-[#17351F] text-[#C8E87A] font-mono font-bold text-[9px] flex items-center justify-center">
+                        <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-xs bg-[#17351F] text-[#C8E87A] font-mono font-bold text-[8px] sm:text-[9px] flex items-center justify-center">
                           03
                         </span>
-                        <h4 className="text-[11px] font-black uppercase tracking-wider text-[#17351F]">Join The Board</h4>
+                        <h4 className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-[#17351F]">Join The Board</h4>
                       </div>
-                      <p className="text-[10px] text-[#17351F]/70 leading-snug">
+                      <p className="text-[9px] sm:text-[10px] text-[#17351F]/70 leading-snug">
                         Pay $1 per spot. Your tile is instantly rendered on the live board for visitors worldwide.
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-1.5 flex items-center justify-between pt-1 border-t border-[#C9D7B5]/60">
-                    <span className="text-[9px] text-[#17351F]/60">
+                  <div className="mt-1 flex items-center justify-between pt-1 border-t border-[#C9D7B5]/60">
+                    <span className="text-[8px] sm:text-[9px] text-[#17351F]/60">
                       Spots can also be acquired by others at 2.5× value, keeping the board dynamic.
                     </span>
                     <button
                       onClick={dismissOnboarding}
-                      className="text-[9px] font-bold uppercase tracking-wider text-[#17351F] hover:underline cursor-pointer"
+                      className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider text-[#17351F] hover:underline cursor-pointer"
                     >
                       Got it, dismiss ✓
                     </button>
@@ -648,36 +648,39 @@ export default function App() {
           </AnimatePresence>
 
           {/* 4. BOARD STATUS & INTERACTION INSTRUCTION BAR */}
-          <div className="mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs bg-white/70 backdrop-blur-xs border border-[#C9D7B5] px-3 py-1.5 rounded-sm shadow-2xs">
+          <div className="mt-1 sm:mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 text-xs bg-white/70 backdrop-blur-xs border border-[#C9D7B5] px-2 sm:px-3 py-1 sm:py-1.5 rounded-sm shadow-2xs">
             <div className="flex items-center gap-1.5 text-[#17351F] font-bold">
-              <span className="text-[#17351F] font-mono text-sm">↓</span>
-              <span className="uppercase tracking-wider text-[10px] sm:text-[11px] font-mono">
+              <span className="text-[#17351F] font-mono text-xs sm:text-sm">↓</span>
+              <span className="uppercase tracking-wider text-[9px] sm:text-[11px] font-mono truncate">
                 {selectedPlots.length > 0
-                  ? `${selectedPlots.length} SPOT(S) SELECTED (${selectedPlots.join(' · ')}) — CLICK CLAIM TO PROCEED`
-                  : 'CLICK ANY EMPTY SQUARE TO CLAIM FOR $1'}
+                  ? `${selectedPlots.length} SPOT(S) SELECTED — CLICK CLAIM TO PROCEED`
+                  : 'TAP OR CLICK ANY EMPTY SQUARE TO CLAIM FOR $1'}
               </span>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-2.5 font-mono text-[9px] sm:text-[10px] font-bold text-[#17351F]">
-              <span className="text-[#17351F]/60">BOARD STATUS:</span>
-              <span className="font-black text-[#17351F]">{claimedSpots} CLAIMED</span>
-              <div className="w-20 sm:w-28 h-2 bg-[#C9D7B5] rounded-xs overflow-hidden border border-[#17351F]/30 flex">
-                <div
-                  className="h-full bg-[#17351F] transition-all duration-500"
-                  style={{ width: `${Math.max(percentageClaimed, 1)}%` }}
-                />
+            <div className="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2.5 font-mono text-[8px] sm:text-[10px] font-bold text-[#17351F]">
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                <span className="text-[#17351F]/60 hidden sm:inline">BOARD STATUS:</span>
+                <span className="font-black text-[#17351F]">{claimedSpots} CLAIMED</span>
+                <div className="w-16 sm:w-28 h-1.5 sm:h-2 bg-[#C9D7B5] rounded-xs overflow-hidden border border-[#17351F]/30 flex">
+                  <div
+                    className="h-full bg-[#17351F] transition-all duration-500"
+                    style={{ width: `${Math.max(percentageClaimed, 1)}%` }}
+                  />
+                </div>
               </div>
-              <span className="text-[#17351F]/60">288 TOTAL</span>
-              <span className="text-[#17351F]/40">·</span>
-              <span className="bg-[#C8E87A] text-[#17351F] px-1.5 py-0.5 rounded-xs border border-[#17351F]/40 font-black">
-                {remainingSpots} SPOTS LEFT
-              </span>
+              <div className="flex items-center gap-1">
+                <span className="text-[#17351F]/60 hidden sm:inline">288 TOTAL ·</span>
+                <span className="bg-[#C8E87A] text-[#17351F] px-1 sm:px-1.5 py-0.5 rounded-xs border border-[#17351F]/40 font-black">
+                  {remainingSpots} LEFT
+                </span>
+              </div>
             </div>
           </div>
         </section>
 
         {/* 5. MAIN INTERACTIVE BOARD */}
-        <main ref={gridRef} className="w-full flex-1 flex flex-col items-center justify-center my-auto py-1">
+        <main ref={gridRef} className="w-full flex-1 flex flex-col items-center justify-center py-0.5 sm:py-1 md:my-auto">
           <Grid
             plots={plots}
             selectedPlots={selectedPlots}
@@ -696,12 +699,12 @@ export default function App() {
           />
 
           {!isLoading && (loadError || plots.length === 0) && (
-            <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#C9D7B5]/90 p-6">
-              <div className="max-w-md bg-[#F5F8EC] border-2 border-[#17351F] p-6 text-center shadow-xl">
-                <p className="text-sm font-black uppercase tracking-widest text-[#17351F] mb-2">
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#C9D7B5]/90 p-4 sm:p-6">
+              <div className="max-w-md bg-[#F5F8EC] border-2 border-[#17351F] p-4 sm:p-6 text-center shadow-xl">
+                <p className="text-xs sm:text-sm font-black uppercase tracking-widest text-[#17351F] mb-2">
                   {loadError ? 'Could not load the grid' : 'No plots to display'}
                 </p>
-                <p className="text-xs text-[#17351F]/70 mb-4 leading-relaxed">
+                <p className="text-[11px] sm:text-xs text-[#17351F]/70 mb-4 leading-relaxed">
                   {loadError || 'The API returned an empty board.'}
                 </p>
                 <button
@@ -710,7 +713,7 @@ export default function App() {
                     setIsLoading(true);
                     loadData();
                   }}
-                  className="px-6 py-2 bg-[#17351F] text-[#F5F8EC] text-[10px] font-bold uppercase tracking-widest hover:bg-[#2a5a35]"
+                  className="px-5 sm:px-6 py-2 bg-[#17351F] text-[#F5F8EC] text-[10px] font-bold uppercase tracking-widest hover:bg-[#2a5a35] cursor-pointer"
                 >
                   Retry
                 </button>
@@ -720,15 +723,15 @@ export default function App() {
         </main>
 
         {/* Subtle Bottom Scroll Cue */}
-        <div className="w-full text-center pb-2 select-none opacity-40 hover:opacity-90 transition-opacity shrink-0">
-          <span className="text-[9px] font-mono font-bold uppercase tracking-[0.2em] text-[#17351F]">
+        <div className="w-full text-center pb-1.5 sm:pb-2 select-none opacity-40 hover:opacity-90 transition-opacity shrink-0">
+          <span className="text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-[0.2em] text-[#17351F]">
             Scroll for details & live activity ↓
           </span>
         </div>
       </div>
 
       {/* 5. FLOATING SELECTION PANEL */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
+      <div className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
         <div className="pointer-events-auto">
           {selectedPlots.length > 0 && !isPurchaseModalOpen && !isPaymentModalOpen && config && (
             <SelectionPanel
@@ -992,23 +995,36 @@ export default function App() {
       {/* 7. FOOTER */}
       <footer className="w-full bg-[#17351F] text-[#F5F8EC]/80 border-t border-[#17351F] py-8 px-4 sm:px-8 text-xs font-mono z-30">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 sm:gap-3">
             <span className="font-bold text-white uppercase tracking-widest">TakeTheSpot.lol</span>
             <span className="text-white/30">|</span>
-            <span className="text-white/60 text-[10px]">© {new Date().getFullYear()} All spots permanent</span>
+            <span className="text-white/60 text-[10px]">Built by</span>
+            <a
+              href="https://x.com/nirajxdev"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#C8E87A] hover:underline font-bold transition-colors inline-flex items-center gap-1.5"
+            >
+              <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+              <span>@nirajxdev</span>
+            </a>
+            <span className="text-white/30 hidden sm:inline">|</span>
+            <span className="text-white/60 text-[10px] hidden sm:inline">© {new Date().getFullYear()} All spots permanent</span>
           </div>
 
           <div className="flex items-center gap-4 text-[10px] uppercase font-bold tracking-wider">
             <button
               onClick={() => setIsRulesModalOpen(true)}
-              className="hover:text-[#C8E87A] transition-colors"
+              className="hover:text-[#C8E87A] transition-colors cursor-pointer"
             >
               How It Works
             </button>
             <button
               type="button"
               onClick={() => setIsAdminPanelOpen(true)}
-              className="hover:text-[#C8E87A] transition-colors"
+              className="hover:text-[#C8E87A] transition-colors cursor-pointer"
             >
               Admin
             </button>
