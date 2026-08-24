@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plot, MarketConfig } from '../types.ts';
 import { formatCurrency, compressImageFile, fetchSiteIdentity, getInitials } from '../utils.ts';
 import { motion } from 'motion/react';
@@ -342,23 +342,57 @@ export default function PurchaseModal({ selectedIds, plots, config, onClose, onP
           </div>
 
           {/* Price & Summary Breakdown */}
-          <div className="bg-[#17351F] text-[#F5F8EC] px-3.5 py-2.5 rounded-sm flex items-center justify-between font-mono">
-            <div>
-              <div className="text-[9px] text-[#C8E87A] font-bold uppercase tracking-wider">
-                {selectedIds.length} Spot{selectedIds.length === 1 ? '' : 's'} · {config.ownershipDurationDays}-day ownership
+          <div className="bg-[#17351F] text-[#F5F8EC] p-3.5 rounded-sm flex flex-col gap-2 font-mono">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2">
+              <div>
+                <div className="text-[10px] text-[#C8E87A] font-bold uppercase tracking-wider">
+                  {selectedIds.length} Spot{selectedIds.length === 1 ? '' : 's'} Selected
+                </div>
+                <div className="text-[9px] text-white/60">
+                  Active for 90 days from confirmed payment
+                </div>
               </div>
-              <div className="text-[10px] text-white/70">
-                {selectedIds.join(' · ')}
+              <div className="text-right">
+                <span className="text-[8px] text-white/50 uppercase tracking-widest block">Estimated Total</span>
+                <span className="text-base sm:text-lg font-black text-[#C8E87A]">{formatCurrency(totalCost)}</span>
               </div>
             </div>
-            <div className="text-right">
-              <span className="text-[8px] text-white/50 uppercase tracking-widest block">Total</span>
-              <span className="text-base sm:text-lg font-black text-[#C8E87A]">{formatCurrency(totalCost)}</span>
+
+            {/* Itemized breakdown if mixed */}
+            <div className="text-[9px] text-white/80 space-y-1 pt-0.5">
+              {selectedPlots.some((p) => p.status === 'available') && (
+                <div className="flex justify-between items-center">
+                  <span className="text-white/70">
+                    {selectedPlots.filter((p) => p.status === 'available').length} Available Spot(s) @ $1.00 each:
+                  </span>
+                  <span className="font-bold text-white">
+                    {formatCurrency(
+                      selectedPlots
+                        .filter((p) => p.status === 'available')
+                        .reduce((s, p) => s + p.currentPrice, 0),
+                    )}
+                  </span>
+                </div>
+              )}
+              {selectedPlots.some((p) => p.status === 'owned') && (
+                <div className="flex justify-between items-center text-[#FCD34D]">
+                  <span>
+                    {selectedPlots.filter((p) => p.status === 'owned').length} Occupied Spot(s) @ 2.5× takeover:
+                  </span>
+                  <span className="font-bold">
+                    {formatCurrency(
+                      selectedPlots
+                        .filter((p) => p.status === 'owned')
+                        .reduce((s, p) => s + Math.round(p.currentPrice * config.takeoverMultiplier), 0),
+                    )}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
           {error && (
-            <div className="p-2 bg-red-50 text-red-700 rounded-sm text-xs border border-red-200 font-medium">
+            <div className="p-2.5 bg-red-50 text-red-700 rounded-sm text-xs border border-red-200 font-medium">
               {error}
             </div>
           )}

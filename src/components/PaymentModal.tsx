@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Plot } from '../types.ts';
 import { formatCurrency, cn } from '../utils.ts';
 import { motion } from 'motion/react';

@@ -16,7 +16,12 @@ import {
   getDodoWebhookSecret,
   headerValue,
 } from "./dodo.ts";
-import { completePurchase, quotePurchaseTotal, type PurchaseResult } from "./purchase.ts";
+import {
+  completePurchase,
+  quotePurchaseDetails,
+  quotePurchaseTotal,
+  type PurchaseResult,
+} from "./purchase.ts";
 import { handleAdminLogin, requireAdmin } from "./admin.ts";
 
 function getExpress() {
@@ -119,18 +124,39 @@ async function fulfillCheckout(
   paymentId: string,
 ): Promise<PurchaseResult> {
   if (checkout.status === "completed") {
-    return { ok: true, updatedPlots: [], totalCost: 0 };
+    return {
+      ok: true,
+      updatedPlots: [],
+      totalCost: checkout.expectedAmount,
+      manageToken: checkout.manageToken,
+      quote: {
+        availableCount: 0,
+        availableTotal: 0,
+        takeoverCount: 0,
+        takeoverTotal: 0,
+        totalCost: checkout.expectedAmount,
+        items: [],
+      },
+    };
   }
 
-  const quote = await quotePurchaseTotal(
+  const quoteRes = await quotePurchaseDetails(
     checkout.plotIds,
     checkout.ownerId,
     mergeConfig,
   );
-  if (quote.ok && quote.totalCost > checkout.expectedAmount) {
+  if (quoteRes.ok === false) {
     checkout.status = "failed";
     checkout.paymentId = paymentId;
-    checkout.error = `Plot prices changed (${quote.totalCost} cents due, paid ${checkout.expectedAmount}).`;
+    checkout.error = quoteRes.error;
+    await saveCheckout(checkout);
+    return quoteRes;
+  }
+
+  if (quoteRes.quote.totalCost > checkout.expectedAmount) {
+    checkout.status = "failed";
+    checkout.paymentId = paymentId;
+    checkout.error = `Plot prices changed (${quoteRes.quote.totalCost} cents due, paid ${checkout.expectedAmount}).`;
     await saveCheckout(checkout);
     return { ok: false, status: 409, error: checkout.error };
   }
@@ -142,6 +168,7 @@ async function fulfillCheckout(
       brandName: checkout.brandName,
       logo: checkout.logo,
       websiteUrl: checkout.websiteUrl,
+      manageToken: checkout.manageToken,
     },
     mergeConfig,
   );
@@ -523,7 +550,264 @@ export function createApiApp() {
     }
   });
 
-  app.post("/api/checkout", async (req, res) => {
+  // 1. Authoritative Pricing Quote Endpoint
+  app.post("/api/quote", async (req: Request, res: Response) => {
+    try {
+      const { plotIds, ownerId } = req.body ?? {};
+      const quoteRes = await quotePurchaseDetails(
+        plotIds,
+        String(ownerId ?? ""),
+        mergeConfig,
+      );
+      if (quoteRes.ok === false) {
+        return res.status(quoteRes.status).json({ error: quoteRes.error });
+      }
+      res.json({ ok: true, quote: quoteRes.quote });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: publicError(e, "Failed to calculate quote") });
+    }
+  });
+
+  // 2. Real Live Billboard Statistics & Contested Spots
+  app.get("/api/stats", async (_req: Request, res: Response) => {
+    try {
+      const [plots, txs] = await Promise.all([loadPlots(), loadTransactions()]);
+      if (refreshExpirations(plots)) {
+        await savePlots(plots);
+      }
+
+      const totalSpots = plots.length;
+      const claimedSpots = plots.filter((p) => p.status === "owned").length;
+      const availableSpots = totalSpots - claimedSpots;
+      
+      const totalVolume = txs.reduce((sum, tx) => sum + (tx.transactionAmount || 0), 0);
+      const totalAcquisitions = txs.filter((tx) => Boolean(tx.previousOwner)).length;
+
+      // Most valuable active spots (highest current listed price)
+      const mostValuableSpots = [...plots]
+        .filter((p) => p.status === "owned")
+        .sort((a, b) => b.currentPrice - a.currentPrice)
+        .slice(0, 5)
+        .map((p) => ({
+          id: p.id,
+          brandName: p.brandName,
+          logo: p.logo,
+          websiteUrl: p.websiteUrl,
+          currentPrice: p.currentPrice,
+          takeoverPrice: Math.round(p.currentPrice * 2.5),
+          expiresAt: p.expiresAt,
+        }));
+
+      // Most contested spots (by number of transactions)
+      const spotTxCounts: Record<string, number> = {};
+      for (const tx of txs) {
+        spotTxCounts[tx.plotId] = (spotTxCounts[tx.plotId] || 0) + 1;
+      }
+      const mostContestedSpots = Object.entries(spotTxCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([plotId, count]) => {
+          const p = plots.find((plot) => plot.id === plotId);
+          return {
+            id: plotId,
+            acquisitionsCount: count,
+            brandName: p?.brandName ?? null,
+            logo: p?.logo ?? null,
+            websiteUrl: p?.websiteUrl ?? null,
+            currentPrice: p?.currentPrice ?? 100,
+            status: p?.status ?? "available",
+          };
+        });
+
+      // Recent unique active brands for the Discover showcase
+      const seenBrands = new Set<string>();
+      const recentBrands: {
+        id: string;
+        brandName: string;
+        logo: string | null;
+        websiteUrl: string | null;
+        spotsCount: number;
+        purchasedAt: string | null;
+      }[] = [];
+
+      // Group active plots by owner/brand
+      const brandPlotMap: Record<string, Plot[]> = {};
+      for (const p of plots) {
+        if (p.status === "owned" && p.brandName) {
+          const key = p.brandName.trim().toLowerCase();
+          if (!brandPlotMap[key]) brandPlotMap[key] = [];
+          brandPlotMap[key].push(p);
+        }
+      }
+
+      for (const group of Object.values(brandPlotMap)) {
+        const first = group[0];
+        if (!first.brandName) continue;
+        recentBrands.push({
+          id: first.id,
+          brandName: first.brandName,
+          logo: first.logo,
+          websiteUrl: first.websiteUrl,
+          spotsCount: group.length,
+          purchasedAt: first.purchasedAt,
+        });
+      }
+
+      recentBrands.sort((a, b) => {
+        const timeA = a.purchasedAt ? new Date(a.purchasedAt).getTime() : 0;
+        const timeB = b.purchasedAt ? new Date(b.purchasedAt).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      setBoardCache(res);
+      res.json({
+        totalSpots,
+        claimedSpots,
+        availableSpots,
+        totalVolume,
+        totalAcquisitions,
+        mostValuableSpots,
+        mostContestedSpots,
+        recentBrands: recentBrands.slice(0, 12),
+      });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: publicError(e, "Failed to load stats") });
+    }
+  });
+
+  // 3. Single Spot Details for Shareable Links (/spot/:id)
+  app.get("/api/plots/:id", async (req: Request, res: Response) => {
+    try {
+      const plotId = String(req.params.id || "").toUpperCase();
+      const [plots, txs, config] = await Promise.all([loadPlots(), loadTransactions(), loadConfig()]);
+      if (refreshExpirations(plots)) {
+        await savePlots(plots);
+      }
+
+      const plot = plots.find((p) => p.id.toUpperCase() === plotId);
+      if (!plot) {
+        return res.status(404).json({ error: `Spot ${plotId} not found` });
+      }
+
+      const spotTxs = txs
+        .filter((tx) => tx.plotId.toUpperCase() === plotId)
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      setBoardCache(res);
+      res.json({
+        plot: {
+          id: plot.id,
+          row: plot.row,
+          col: plot.col,
+          status: plot.status,
+          ownerId: plot.ownerId,
+          brandName: plot.brandName,
+          logo: plot.logo,
+          websiteUrl: plot.websiteUrl,
+          currentPrice: plot.currentPrice,
+          takeoverPrice: plot.status === "owned"
+            ? Math.round(plot.currentPrice * config.takeoverMultiplier)
+            : plot.currentPrice,
+          purchasedAt: plot.purchasedAt,
+          expiresAt: plot.expiresAt,
+        },
+        transactions: spotTxs,
+      });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: publicError(e, "Failed to load spot details") });
+    }
+  });
+
+  // 4. Secure Private Management API
+  app.get("/api/manage/:token", async (req: Request, res: Response) => {
+    try {
+      const token = String(req.params.token ?? "").trim();
+      if (!token || token.length < 16) {
+        return res.status(401).json({ error: "Invalid management token" });
+      }
+
+      const plots = await loadPlots();
+      if (refreshExpirations(plots)) {
+        await savePlots(plots);
+      }
+
+      const ownedPlots = plots.filter(
+        (p) => p.status === "owned" && p.manageToken === token,
+      );
+
+      if (ownedPlots.length === 0) {
+        return res.status(404).json({
+          error: "No active spots found for this management token. They may have expired or been acquired.",
+        });
+      }
+
+      res.json({
+        ok: true,
+        plots: compactPlotsForClient(ownedPlots),
+        brandName: ownedPlots[0].brandName,
+        websiteUrl: ownedPlots[0].websiteUrl,
+        logo: ownedPlots[0].logo,
+        expiresAt: ownedPlots[0].expiresAt,
+      });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: publicError(e, "Failed to load management view") });
+    }
+  });
+
+  app.post("/api/manage/:token", async (req: Request, res: Response) => {
+    try {
+      const token = String(req.params.token ?? "").trim();
+      if (!token || token.length < 16) {
+        return res.status(401).json({ error: "Invalid management token" });
+      }
+
+      const { brandName, websiteUrl, logo } = req.body ?? {};
+      const plots = await loadPlots();
+      if (refreshExpirations(plots)) {
+        await savePlots(plots);
+      }
+
+      const ownedPlots = plots.filter(
+        (p) => p.status === "owned" && p.manageToken === token,
+      );
+
+      if (ownedPlots.length === 0) {
+        return res.status(404).json({
+          error: "No active spots found for this management token to update.",
+        });
+      }
+
+      for (const plot of ownedPlots) {
+        if (typeof brandName === "string" && brandName.trim()) {
+          plot.brandName = brandName.trim();
+        }
+        if (typeof websiteUrl === "string") {
+          plot.websiteUrl = websiteUrl.trim();
+        }
+        if (typeof logo === "string") {
+          plot.logo = logo.trim();
+        }
+      }
+
+      await savePlots(plots);
+
+      res.json({
+        ok: true,
+        updatedCount: ownedPlots.length,
+        plots: compactPlotsForClient(ownedPlots),
+      });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: publicError(e, "Failed to update managed spots") });
+    }
+  });
+
+  // 5. Checkout Creation
+  app.post("/api/checkout", async (req: Request, res: Response) => {
     try {
       const missing = dodoCheckoutMissing();
       if (missing) {
@@ -531,14 +815,16 @@ export function createApiApp() {
       }
 
       const { plotIds, ownerId, brandName, logo, websiteUrl } = req.body ?? {};
-      const quote = await quotePurchaseTotal(
+      const quoteRes = await quotePurchaseDetails(
         plotIds,
         String(ownerId ?? ""),
         mergeConfig,
       );
-      if (quote.ok === false) {
-        return res.status(quote.status).json({ error: quote.error });
+      if (quoteRes.ok === false) {
+        return res.status(quoteRes.status).json({ error: quoteRes.error });
       }
+
+      const quote = quoteRes.quote;
       if (quote.totalCost < 100) {
         return res.status(400).json({ error: "Checkout amount must be at least $1.00." });
       }
@@ -552,10 +838,16 @@ export function createApiApp() {
       }
 
       const checkoutId = crypto.randomUUID();
+      const manageToken = crypto.randomUUID();
       const returnUrl = `${getAppBaseUrl(req)}/?paid=1&checkout=${encodeURIComponent(checkoutId)}`;
       const cancelUrl = `${getAppBaseUrl(req)}/?paid=0`;
 
       const billingCurrency = process.env.DODO_BILLING_CURRENCY?.trim().toUpperCase();
+
+      const itemizedPrices: Record<string, number> = {};
+      quote.items.forEach((item) => {
+        itemizedPrices[item.plotId] = item.priceDue;
+      });
 
       const session = await client.checkoutSessions.create({
         product_cart: [
@@ -590,11 +882,13 @@ export function createApiApp() {
         id: checkoutId,
         dodoSessionId: session.session_id,
         plotIds,
-        ownerId,
+        itemizedPrices,
+        ownerId: String(ownerId ?? ""),
         brandName: String(brandName ?? ""),
         logo: String(logo ?? ""),
         websiteUrl: String(websiteUrl ?? ""),
         expectedAmount: quote.totalCost,
+        manageToken,
         status: "pending",
         createdAt: new Date().toISOString(),
       };
@@ -605,6 +899,8 @@ export function createApiApp() {
         sessionId: session.session_id,
         checkoutUrl: session.checkout_url,
         amount: quote.totalCost,
+        quote,
+        manageToken,
       });
     } catch (e) {
       console.error(e);
@@ -615,17 +911,15 @@ export function createApiApp() {
     }
   });
 
-  app.get("/api/checkout/:id", async (req, res) => {
+  // 6. Checkout Polling
+  app.get("/api/checkout/:id", async (req: Request, res: Response) => {
     try {
-      const ownerId = String(req.query.ownerId ?? "");
       const all = await getCheckoutMap();
       const checkout = all[req.params.id];
       if (!checkout) {
         return res.status(404).json({ error: "Checkout not found" });
       }
-      if (ownerId && checkout.ownerId !== ownerId) {
-        return res.status(404).json({ error: "Checkout not found" });
-      }
+
       res.json({
         id: checkout.id,
         status: checkout.status,
@@ -633,6 +927,7 @@ export function createApiApp() {
         ownerId: checkout.ownerId,
         brandName: checkout.brandName,
         expectedAmount: checkout.expectedAmount,
+        manageToken: checkout.status === "completed" ? checkout.manageToken : undefined,
         error: checkout.error ?? null,
       });
     } catch (e) {
@@ -641,7 +936,7 @@ export function createApiApp() {
     }
   });
 
-  app.post("/api/purchase", async (req, res) => {
+  app.post("/api/purchase", async (req: Request, res: Response) => {
     try {
       if (process.env.ALLOW_DIRECT_PURCHASE !== "true") {
         return res.status(403).json({
@@ -662,6 +957,8 @@ export function createApiApp() {
         success: true,
         updatedPlots: result.updatedPlots,
         totalCost: result.totalCost,
+        manageToken: result.manageToken,
+        quote: result.quote,
       });
     } catch (e) {
       console.error(e);

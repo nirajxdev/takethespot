@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plot, MarketConfig } from '../types.ts';
+import React, { useState, useEffect } from 'react';
+import { Plot, MarketConfig, Transaction } from '../types.ts';
 import { formatCurrency } from '../utils.ts';
 
 interface AdminPanelProps {

@@ -18,12 +18,18 @@ import {
   Flame,
   ChevronDown,
   X,
+  TrendingUp,
+  ShieldCheck,
+  Award,
+  Clock,
+  ExternalLink,
 } from 'lucide-react';
 
 const PurchaseModal = lazy(() => import('./components/PurchaseModal.tsx'));
 const TakeoverModal = lazy(() => import('./components/TakeoverModal.tsx'));
 const PaymentModal = lazy(() => import('./components/PaymentModal.tsx'));
 const SuccessModal = lazy(() => import('./components/SuccessModal.tsx'));
+const ManageModal = lazy(() => import('./components/ManageModal.tsx'));
 const AdminPanel = lazy(() => import('./components/AdminPanel.tsx'));
 const RulesModal = lazy(() =>
   import('./components/RulesModal.tsx').then((m) => ({ default: m.RulesModal }))
@@ -38,7 +44,19 @@ type PendingClientCheckout = {
   brandName: string;
   logo: string;
   websiteUrl: string;
+  manageToken?: string;
 };
+
+interface BoardStats {
+  totalSpots: number;
+  claimedSpots: number;
+  availableSpots: number;
+  totalVolume: number;
+  acquisitionsCount: number;
+  mostValuableSpots: { id: string; price: number; brandName?: string; takeoverPrice: number }[];
+  mostContestedSpots: { id: string; takeoverCount: number; brandName?: string; price: number }[];
+  recentBrands: { brandName: string; websiteUrl?: string; logo?: string; spotIds: string[] }[];
+}
 
 export default function App() {
   const [plots, setPlots] = useState<Plot[]>([]);
@@ -49,10 +67,14 @@ export default function App() {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [manageToken, setManageToken] = useState<string | null>(null);
+  const [successManageToken, setSuccessManageToken] = useState<string | undefined>(undefined);
+  const [highlightedPlotId, setHighlightedPlotId] = useState<string | null>(null);
   const [isSoundEnabled, setIsSoundEnabled] = useState(() => localStorage.getItem('sound_enabled') === 'true');
   const [purchaseDetails, setPurchaseDetails] = useState<{ brandName: string; logo: string; websiteUrl: string } | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(() => localStorage.getItem(ONBOARDING_DISMISSED_KEY) !== 'true');
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [boardStats, setBoardStats] = useState<BoardStats | null>(null);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -128,6 +150,20 @@ export default function App() {
     }
   }, []);
 
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/stats');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === 'object') {
+          setBoardStats(data);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const showToast = (message: string) => {
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3000);
@@ -149,7 +185,7 @@ export default function App() {
       setIsPurchaseModalOpen(true);
     } else {
       scrollToGrid();
-      showToast('Choose an available spot on the board to continue.');
+      showToast('Click or drag to select any spot(s) on the board.');
     }
   };
 
@@ -157,15 +193,17 @@ export default function App() {
     let interval: ReturnType<typeof setInterval> | undefined;
     loadData().finally(() => {
       fetchTransactions();
+      fetchStats();
       interval = setInterval(() => {
         loadData();
         fetchTransactions();
+        fetchStats();
       }, 8000);
     });
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [loadData, fetchTransactions]);
+  }, [loadData, fetchTransactions, fetchStats]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -179,6 +217,7 @@ export default function App() {
         isSuccessModalOpen ||
         isAdminPanelOpen ||
         isRulesModalOpen ||
+        manageToken !== null ||
         focusedPlots !== null;
 
       if (e.key === 'Escape') {
@@ -196,20 +235,34 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedPlots, isPurchaseModalOpen, isPaymentModalOpen, isSuccessModalOpen, isAdminPanelOpen, isRulesModalOpen, focusedPlots]);
+  }, [selectedPlots, isPurchaseModalOpen, isPaymentModalOpen, isSuccessModalOpen, isAdminPanelOpen, isRulesModalOpen, manageToken, focusedPlots]);
 
+  // Query parameter deep link handling
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const path = window.location.pathname.replace(/\/$/, '');
+
     if (params.get('admin') === '1' || path === '/admin') {
       setIsAdminPanelOpen(true);
     }
+
+    const tokenParam = params.get('manage');
+    if (tokenParam) {
+      setManageToken(tokenParam);
+    }
+
+    const spotParam = params.get('spot');
+    if (spotParam) {
+      setHighlightedPlotId(spotParam.toUpperCase());
+    }
+
     if (params.get('paid') === '0') {
       showToast('Checkout was cancelled. No spots were claimed.');
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
 
+  // Post-payment verification loop
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('paid') !== '1') return;
@@ -254,8 +307,12 @@ export default function App() {
           const data = await res.json().catch(() => null);
           if (res.ok && data?.status === 'completed') {
             await loadData();
+            await fetchStats();
             if (isSoundEnabled) playSuccessChime();
             setIsConfirmingPayment(false);
+            if (data.manageToken) {
+              setSuccessManageToken(data.manageToken);
+            }
             setIsSuccessModalOpen(true);
             sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
             finishUrl();
@@ -279,6 +336,7 @@ export default function App() {
           });
           if (owned) {
             setPlots(hydratePlots(plotsData));
+            await fetchStats();
             if (isSoundEnabled) playSuccessChime();
             setIsConfirmingPayment(false);
             setIsSuccessModalOpen(true);
@@ -305,76 +363,40 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [isSoundEnabled, loadData]);
+  }, [isSoundEnabled, loadData, fetchStats]);
 
+  // Click on plot: if owned, open acquisition modal; if available, toggle in selection
   const handlePlotClick = (plot: Plot, mergedPlots?: Plot[]) => {
     if (plot.status === 'owned') {
-      setFocusedPlots(mergedPlots ? mergedPlots : [plot]);
+      setFocusedPlots(mergedPlots && mergedPlots.length > 0 ? mergedPlots : [plot]);
       return;
     }
 
-    if (mergedPlots) {
-      const mergedIds = mergedPlots.map((p) => p.id);
-      setSelectedPlots((prev) => prev.filter((id) => !mergedIds.includes(id)));
-      return;
-    }
+    const idsToToggle = mergedPlots && mergedPlots.length > 0
+      ? mergedPlots.map((p) => p.id)
+      : [plot.id];
 
-    if (selectedPlots.includes(plot.id)) {
-      setSelectedPlots((prev) => prev.filter((id) => id !== plot.id));
-    } else {
-      if (!config) return;
-
-      const ownerId = getUserId();
-      const remaining =
-        config.maxPlotsPerUser -
-        plots.filter((p) => p.ownerId === ownerId).length;
-
-      if (remaining <= 0) {
-        showToast(`You already hold ${config.maxPlotsPerUser} spots, the maximum allowed.`);
-        return;
+    setSelectedPlots((prev) => {
+      const allSelected = idsToToggle.every((id) => prev.includes(id));
+      if (allSelected) {
+        return prev.filter((id) => !idsToToggle.includes(id));
+      } else {
+        return Array.from(new Set([...prev, ...idsToToggle]));
       }
+    });
+  };
 
-      if (selectedPlots.length >= remaining) {
-        showToast(
-          remaining === config.maxPlotsPerUser
-            ? `You may select up to ${config.maxPlotsPerUser} spots.`
-            : `You may hold ${config.maxPlotsPerUser} spots in total. ${remaining} remaining.`
-        );
-        return;
-      }
+  // Batch selection for drag marquee or quick presets
+  const handleSelectBatch = (plotIds: string[]) => {
+    setSelectedPlots(plotIds);
+  };
 
-      if (selectedPlots.length > 0) {
-        const isAdjacent = selectedPlots.some((id) => {
-          const p = plots.find((p) => p.id === id);
-          if (!p) return false;
-          const rowDiff = Math.abs(plot.row - p.row);
-          const colDiff = Math.abs(plot.col - p.col);
-          return (rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1);
-        });
-
-        if (!isAdjacent) {
-          showToast('Select a spot that shares an edge with your current selection.');
-          return;
-        }
-      }
-
-      setSelectedPlots((prev) => [...prev, plot.id]);
-    }
+  // Clear selection
+  const handleClearSelection = () => {
+    setSelectedPlots([]);
   };
 
   const handleTakeover = (plotsToTake: Plot[]) => {
-    if (!config) return;
-    const remaining =
-      config.maxPlotsPerUser -
-      plots.filter((p) => p.ownerId === getUserId()).length;
-    if (plotsToTake.length > remaining) {
-      showToast(
-        remaining === 0
-          ? `You already hold ${config.maxPlotsPerUser} spots, the maximum allowed.`
-          : `You may hold ${config.maxPlotsPerUser} spots in total. ${remaining} remaining.`
-      );
-      return;
-    }
     setFocusedPlots(null);
     setSelectedPlots(plotsToTake.map((p) => p.id));
     setIsPurchaseModalOpen(true);
@@ -412,6 +434,7 @@ export default function App() {
       checkoutId: data.checkoutId,
       plotIds: selectedPlots,
       ...purchaseDetails,
+      manageToken: data.manageToken,
     };
     sessionStorage.setItem(PENDING_CHECKOUT_KEY, JSON.stringify(pending));
     window.location.href = data.checkoutUrl;
@@ -422,11 +445,33 @@ export default function App() {
   const remainingSpots = Math.max(0, totalSpots - claimedSpots);
   const percentageClaimed = Math.round((claimedSpots / totalSpots) * 100);
 
+  const selectedPlotsObjects = selectedPlots
+    .map((id) => plots.find((p) => p.id === id))
+    .filter(Boolean) as Plot[];
+
+  const selectedAvailableCount = selectedPlotsObjects.filter((p) => p.status === 'available').length;
+  const selectedTakeoverCount = selectedPlotsObjects.filter((p) => p.status === 'owned').length;
+  const estimatedSelectionTotal = selectedPlotsObjects.reduce((sum, p) => {
+    if (p.status === 'available') {
+      return sum + p.currentPrice;
+    }
+    return sum + Math.round(p.currentPrice * (config?.takeoverMultiplier || 2.5));
+  }, 0);
+
+  const hasRealActivity = (boardStats?.totalVolume || 0) > 0 || claimedSpots > 0;
+  const hasRecentBrands = Boolean(boardStats?.recentBrands && boardStats.recentBrands.length > 0);
+  const hasValuableSpots = Boolean(boardStats?.mostValuableSpots && boardStats.mostValuableSpots.length > 0);
+  const hasContestedSpots = Boolean(
+    boardStats?.mostContestedSpots &&
+      boardStats.mostContestedSpots.length > 0 &&
+      boardStats.mostContestedSpots.some((s) => s.takeoverCount > 0),
+  );
+
   useEffect(() => {
     if (!config || !plots.length) return;
     const initialPriceFormatted = `$${(config.initialPrice / 100).toFixed(2)}`;
     const dynamicTitle = `Take The Spot | ${claimedSpots} / ${totalSpots} Spots Taken`;
-    const dynamicDesc = `Claim your permanent spot on this limited 288-square internet board for ${initialPriceFormatted}.`;
+    const dynamicDesc = `Claim space on a 288-cell public digital billboard starting from ${initialPriceFormatted}. 90-day active placements with competitive acquisitions.`;
 
     document.title = dynamicTitle;
 
@@ -447,27 +492,27 @@ export default function App() {
   const faqs = [
     {
       q: "What is TakeTheSpot.lol?",
-      a: "TakeTheSpot is a shared digital board with a fixed limit of 288 spots. You can claim any open spot for $1 and associate it with your website, portfolio, startup, meme, art, or online handle.",
+      a: "TakeTheSpot is a competitive public digital billboard with exactly 288 cells. Anyone can purchase 1 cell, multiple cells, large rectangular sections, or even the entire board to showcase their project, startup, portfolio, art, or online presence.",
     },
     {
       q: "How much does a spot cost?",
-      a: "Each available spot costs $1.00 USD. There are no hidden fees. Once claimed, your spot belongs to you for 90 days.",
+      a: "Available empty cells cost $1.00 USD each. Occupied cells can be acquired at 2.5× their current listed value. There are no limits on how many cells you can buy at once.",
     },
     {
-      q: "Do I need to upload a logo?",
-      a: "No! Custom logo upload is completely optional. When you enter your website URL, we automatically detect your site's logo or favicon. If you don't have a website or logo, we generate a stylish monogram avatar using your name.",
+      q: "How long does ownership last?",
+      a: "Every purchase grants guaranteed 90-day active placement from the confirmed payment timestamp. If not taken over by someone else, expired cells return to available at $1.00.",
     },
     {
-      q: "Can I claim multiple spots together?",
-      a: "Yes! You can select up to 12 adjacent spots. When adjacent spots form a rectangle, they automatically merge into a larger, more prominent tile on the board.",
+      q: "Can someone acquire part of my merged block?",
+      a: "Yes! Every single cell is an independent source of truth. If another buyer acquires 1 cell from your 16-cell block, you retain the remaining 15 cells, and the visual display dynamically recalculates your remaining tiles instantly.",
     },
     {
-      q: "Can someone take over my spot?",
-      a: "Owned spots can be acquired by other visitors if they pay 2.5× the spot's current value. If nobody takes it over, you retain it for 90 days before it returns to the board.",
+      q: "How do I edit my spot's logo or link later?",
+      a: "After payment, you receive a private secret management link (e.g. ?manage=TOKEN). You can bookmark this URL to update your brand name, destination link, or logo image at any time during your 90-day active period.",
     },
     {
       q: "How does payment work?",
-      a: "Payments are processed securely via Dodo Payments supporting credit cards, debit cards, UPI, and regional payment methods. We never collect or store your financial details.",
+      a: "Payments are processed securely via Dodo Payments supporting credit cards, debit cards, Apple Pay, Google Pay, UPI, and international payment methods. Spots are activated immediately upon verified webhook confirmation.",
     },
   ];
 
@@ -476,57 +521,49 @@ export default function App() {
       <Analytics />
 
       {/* 1. TOP NAVBAR */}
-      <header className="sticky top-0 w-full h-13 sm:h-15 bg-white/95 backdrop-blur-md border-b border-[#C9D7B5] flex items-center justify-between px-2.5 sm:px-8 shrink-0 z-40 shadow-xs">
+      <header className="sticky top-0 w-full h-13 sm:h-14 bg-white/95 backdrop-blur-md border-b border-[#C9D7B5] flex items-center justify-between px-3 sm:px-8 shrink-0 z-40 shadow-xs">
         <div className="flex items-center gap-2 sm:gap-3">
           <a href="/" className="flex items-center gap-2 group">
             <img
               src="/logo.png"
               alt="TakeTheSpot Logo"
-              className="h-7 sm:h-8.5 w-auto rounded-sm border border-[#17351F]/10 group-hover:scale-105 transition-transform"
+              className="h-7 sm:h-8 w-auto rounded-sm border border-[#17351F]/10 group-hover:scale-105 transition-transform"
             />
-            <div className="flex flex-col">
-              <span className="text-[11px] sm:text-sm font-black uppercase tracking-[0.14em] sm:tracking-[0.18em] text-[#17351F] font-serif leading-none">
-                Take The Spot
-              </span>
-              <span className="text-[9px] text-[#17351F]/60 tracking-wider hidden md:block">
-                Claim a permanent spot on the internet.
-              </span>
-            </div>
+            <span className="text-xs sm:text-sm font-black uppercase tracking-[0.16em] text-[#17351F] font-serif leading-none">
+              Take The Spot
+            </span>
           </a>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-4">
-          {/* Live Scarcity Counter */}
-          <div className="flex items-center gap-1 sm:gap-1.5 bg-[#FAFDF5] border border-[#C9D7B5] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-sm text-[8px] sm:text-[10px] font-mono font-bold text-[#17351F]">
-            <span className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-            <span className="hidden sm:inline">{claimedSpots} / {totalSpots} TAKEN</span>
-            <span className="sm:hidden">{claimedSpots}/{totalSpots}</span>
-            <span className="text-[#17351F]/40 hidden sm:inline">·</span>
-            <span className="text-[#17351F]/80 hidden sm:inline">{remainingSpots} LEFT</span>
-          </div>
-
-          {/* How It Works Button */}
+        <div className="flex items-center gap-2 sm:gap-4">
           <button
             onClick={() => setIsRulesModalOpen(true)}
-            className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-[#17351F] hover:text-[#2a5a35] hover:bg-[#F5F8EC] px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-sm transition-colors border border-transparent hover:border-[#C9D7B5] cursor-pointer"
+            className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#17351F] hover:text-[#2a5a35] hover:bg-[#F5F8EC] px-2 py-1 rounded-sm transition-colors border border-transparent hover:border-[#C9D7B5] cursor-pointer"
           >
             Rules
           </button>
 
-          {/* FAQ Anchor Link */}
+          {hasRealActivity && (
+            <a
+              href="#stats"
+              className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#17351F]/70 hover:text-[#17351F] px-2 py-1 rounded-sm transition-colors hidden sm:block"
+            >
+              Stats
+            </a>
+          )}
+
           <a
             href="#faq"
-            className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#17351F]/70 hover:text-[#17351F] px-2 py-1.5 rounded-sm transition-colors hidden md:block"
+            className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#17351F]/70 hover:text-[#17351F] px-2 py-1 rounded-sm transition-colors hidden sm:block"
           >
             FAQ
           </a>
 
-          {/* Primary CTA Button */}
           <button
             onClick={handleClaimClick}
-            className="bg-[#C8E87A] text-[#17351F] hover:bg-[#b5d36e] active:scale-95 text-[9px] sm:text-xs font-black uppercase tracking-[0.1em] sm:tracking-[0.14em] px-2.5 sm:px-4 py-1 sm:py-2 rounded-sm transition-all shadow-sm flex items-center gap-1 sm:gap-1.5 border border-[#17351F] cursor-pointer"
+            className="bg-[#C8E87A] text-[#17351F] hover:bg-[#b5d36e] active:scale-95 text-[10px] sm:text-xs font-black uppercase tracking-[0.12em] px-3 sm:px-4 py-1.5 rounded-sm transition-all shadow-sm flex items-center gap-1 border border-[#17351F] cursor-pointer"
           >
-            <span>Claim Spot</span>
+            <span>Claim Space</span>
             <ArrowRight size={12} className="shrink-0" />
           </button>
         </div>
@@ -539,158 +576,100 @@ export default function App() {
         </div>
       )}
 
-      {/* HERO VIEWPORT CONTAINER */}
-      <div className="flex flex-col justify-start md:justify-between md:min-h-[calc(100dvh-4.25rem)]">
-        {/* 2. COMPACT INTRO ABOVE THE GRID */}
-        <section className="w-full max-w-[96vw] xl:max-w-[1360px] 2xl:max-w-[1440px] mx-auto px-1.5 sm:px-4 pt-1.5 sm:pt-3 pb-0.5 sm:pb-1 shrink-0">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2.5 pb-1 sm:pb-2 border-b border-[#C9D7B5]/60">
-            <div className="flex items-baseline justify-between sm:justify-start gap-2 sm:gap-4">
-              <h1 className="text-base sm:text-3xl lg:text-[38px] font-black uppercase tracking-tight text-[#17351F] font-serif leading-none shrink-0">
+      {/* HERO & BOARD VIEWPORT CONTAINER */}
+      <div className="flex flex-col justify-start md:justify-between md:min-h-[calc(100dvh-3.75rem)]">
+        {/* 2. MINIMAL HERO */}
+        <section className="w-full max-w-[96vw] xl:max-w-[1360px] 2xl:max-w-[1440px] mx-auto px-2 sm:px-4 pt-3 sm:pt-4 pb-1 shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2.5 pb-2.5 border-b border-[#C9D7B5]/60">
+            <div>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tight text-[#17351F] font-serif leading-none">
                 Take Your Spot.
               </h1>
-              <p className="text-[10px] sm:text-sm text-[#17351F]/80 font-medium">
-                Claim 1 of 288 permanent spots.
+              <p className="text-xs sm:text-sm text-[#17351F]/80 mt-1 font-medium">
+                Claim space on a public digital billboard. Starts at $1 · Active for 90 days.
               </p>
             </div>
 
-            <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
-              <div className="bg-white border border-[#C9D7B5] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-sm text-[9px] sm:text-[10px] font-mono font-bold text-[#17351F]">
-                $1.00 <span className="text-[#17351F]/50 font-normal">/ spot</span>
-              </div>
-
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={handleClaimClick}
-                className="bg-[#17351F] text-[#C8E87A] hover:bg-[#234e2e] active:scale-95 text-[9px] sm:text-[11px] font-black uppercase tracking-[0.12em] sm:tracking-[0.14em] px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-sm transition-all shadow-sm flex items-center gap-1 sm:gap-1.5 border border-[#17351F] cursor-pointer"
+                className="bg-[#17351F] text-[#C8E87A] hover:bg-[#234e2e] active:scale-95 text-xs font-black uppercase tracking-[0.14em] px-4 py-2 rounded-sm transition-all shadow-sm flex items-center gap-1.5 border border-[#17351F] cursor-pointer"
               >
-                <span>Pick a Spot</span>
-                <ArrowRight size={12} />
+                <span>Claim Space</span>
+                <ArrowRight size={13} />
               </button>
             </div>
           </div>
 
-          {/* 3. DISMISSIBLE FIRST-TIME VISITOR ONBOARDING */}
-          <AnimatePresence>
-            {showOnboarding && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden mt-1 sm:mt-2"
-              >
-                <div className="bg-[#FAFDF5] border-2 border-[#17351F] rounded-sm p-2 sm:p-3 relative shadow-sm">
-                  <button
-                    onClick={dismissOnboarding}
-                    className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 text-[#17351F]/50 hover:text-[#17351F] p-1 rounded-sm cursor-pointer"
-                    title="Dismiss guide"
-                  >
-                    <X size={13} />
-                  </button>
-
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-[0.16em] bg-[#C8E87A] text-[#17351F] px-1.5 py-0.5 rounded-xs border border-[#17351F]">
-                      Quick Start
-                    </span>
-                    <span className="text-[10px] sm:text-[11px] font-bold text-[#17351F]">How it works:</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5 sm:gap-2">
-                    <div className="bg-white border border-[#C9D7B5] p-1.5 sm:p-2 rounded-sm">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-xs bg-[#17351F] text-[#C8E87A] font-mono font-bold text-[8px] sm:text-[9px] flex items-center justify-center">
-                          01
-                        </span>
-                        <h4 className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-[#17351F]">Pick Any Spot</h4>
-                      </div>
-                      <p className="text-[9px] sm:text-[10px] text-[#17351F]/70 leading-snug">
-                        Click any available square below. You can select up to 12 adjacent squares.
-                      </p>
-                    </div>
-
-                    <div className="bg-white border border-[#C9D7B5] p-1.5 sm:p-2 rounded-sm">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-xs bg-[#17351F] text-[#C8E87A] font-mono font-bold text-[8px] sm:text-[9px] flex items-center justify-center">
-                          02
-                        </span>
-                        <h4 className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-[#17351F]">Make It Yours</h4>
-                      </div>
-                      <p className="text-[9px] sm:text-[10px] text-[#17351F]/70 leading-snug">
-                        Add your project link or name. We auto-detect your logo. Custom upload is optional.
-                      </p>
-                    </div>
-
-                    <div className="bg-white border border-[#C9D7B5] p-1.5 sm:p-2 rounded-sm">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-xs bg-[#17351F] text-[#C8E87A] font-mono font-bold text-[8px] sm:text-[9px] flex items-center justify-center">
-                          03
-                        </span>
-                        <h4 className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-[#17351F]">Join The Board</h4>
-                      </div>
-                      <p className="text-[9px] sm:text-[10px] text-[#17351F]/70 leading-snug">
-                        Pay $1 per spot. Your tile is instantly rendered on the live board for visitors worldwide.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-1 flex items-center justify-between pt-1 border-t border-[#C9D7B5]/60">
-                    <span className="text-[8px] sm:text-[9px] text-[#17351F]/60">
-                      Spots can also be acquired by others at 2.5× value, keeping the board dynamic.
-                    </span>
-                    <button
-                      onClick={dismissOnboarding}
-                      className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider text-[#17351F] hover:underline cursor-pointer"
-                    >
-                      Got it, dismiss ✓
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* 4. BOARD STATUS & INTERACTION INSTRUCTION BAR */}
-          <div className="mt-1 sm:mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 text-xs bg-white/70 backdrop-blur-xs border border-[#C9D7B5] px-2 sm:px-3 py-1 sm:py-1.5 rounded-sm shadow-2xs">
-            <div className="flex items-center gap-1.5 text-[#17351F] font-bold">
-              <span className="text-[#17351F] font-mono text-xs sm:text-sm">↓</span>
-              <span className="uppercase tracking-wider text-[9px] sm:text-[11px] font-mono truncate">
-                {selectedPlots.length > 0
-                  ? `${selectedPlots.length} SPOT(S) SELECTED — CLICK CLAIM TO PROCEED`
-                  : 'TAP OR CLICK ANY EMPTY SQUARE TO CLAIM FOR $1'}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2.5 font-mono text-[8px] sm:text-[10px] font-bold text-[#17351F]">
-              <div className="flex items-center gap-1 sm:gap-1.5">
-                <span className="text-[#17351F]/60 hidden sm:inline">BOARD STATUS:</span>
-                <span className="font-black text-[#17351F]">{claimedSpots} CLAIMED</span>
-                <div className="w-16 sm:w-28 h-1.5 sm:h-2 bg-[#C9D7B5] rounded-xs overflow-hidden border border-[#17351F]/30 flex">
-                  <div
-                    className="h-full bg-[#17351F] transition-all duration-500"
-                    style={{ width: `${Math.max(percentageClaimed, 1)}%` }}
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-[#17351F]/60 hidden sm:inline">288 TOTAL ·</span>
-                <span className="bg-[#C8E87A] text-[#17351F] px-1 sm:px-1.5 py-0.5 rounded-xs border border-[#17351F]/40 font-black">
-                  {remainingSpots} LEFT
+          {/* 3. CONTEXTUAL AVAILABILITY & ACTIVE SELECTION BAR */}
+          {selectedPlots.length === 0 ? (
+            /* DEFAULT STATE: Minimal Live Availability Status */
+            <div className="mt-2 mb-1 flex items-center justify-between text-xs font-mono text-[#17351F] px-1">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="font-bold text-[11px] sm:text-xs">
+                  {claimedSpots} / {totalSpots} spots claimed · {remainingSpots} available
                 </span>
               </div>
+              <span className="text-[10px] text-[#17351F]/60 hidden sm:inline">
+                Click or drag to select cells
+              </span>
             </div>
-          </div>
+          ) : (
+            /* ACTIVE SELECTION STATE: Contextual Summary & Actions */
+            <div className="mt-2 mb-1 bg-[#17351F] text-[#F5F8EC] border border-[#C8E87A]/60 px-3 py-2 rounded-sm flex flex-wrap items-center justify-between gap-2 shadow-md font-mono">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
+                <span className="font-black text-[#C8E87A] uppercase tracking-wide">
+                  {selectedPlots.length} {selectedPlots.length === 1 ? 'spot' : 'spots'} selected
+                </span>
+                <span className="text-white/30 hidden sm:inline">·</span>
+                <span className="text-white/80 text-[11px]">
+                  {selectedAvailableCount > 0 && `${selectedAvailableCount} available`}
+                  {selectedAvailableCount > 0 && selectedTakeoverCount > 0 && ' · '}
+                  {selectedTakeoverCount > 0 && `${selectedTakeoverCount} takeover${selectedTakeoverCount === 1 ? '' : 's'}`}
+                </span>
+                <span className="text-white/30 hidden sm:inline">·</span>
+                <span className="font-bold text-[#C8E87A]">
+                  Estimated total: {formatCurrency(estimatedSelectionTotal)}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={handleClearSelection}
+                  className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-white/60 hover:text-white transition-colors px-2 py-1 cursor-pointer"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPurchaseModalOpen(true)}
+                  className="bg-[#C8E87A] text-[#17351F] hover:bg-[#b5d36e] active:scale-95 text-[10px] sm:text-xs font-black uppercase tracking-wider px-3 py-1.5 rounded-xs transition-all shadow-sm flex items-center gap-1 border border-[#17351F] cursor-pointer"
+                >
+                  <span>Claim {selectedPlots.length} {selectedPlots.length === 1 ? 'Spot' : 'Spots'}</span>
+                  <ArrowRight size={11} />
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
-        {/* 5. MAIN INTERACTIVE BOARD */}
+        {/* 4. MAIN INTERACTIVE BOARD */}
         <main ref={gridRef} className="w-full flex-1 flex flex-col items-center justify-center py-0.5 sm:py-1 md:my-auto">
           <Grid
             plots={plots}
             selectedPlots={selectedPlots}
             onPlotClick={handlePlotClick}
+            onSelectBatch={handleSelectBatch}
+            onClearSelection={handleClearSelection}
+            highlightedPlotId={highlightedPlotId}
             config={
               config || {
                 totalRows: 12,
                 totalColumns: 24,
                 initialPrice: 100,
-                maxPlotsPerUser: 12,
+                maxPlotsPerUser: 288,
                 ownershipDurationDays: 90,
                 takeoverMultiplier: 2.5,
               }
@@ -723,14 +702,14 @@ export default function App() {
         </main>
 
         {/* Subtle Bottom Scroll Cue */}
-        <div className="w-full text-center pb-1.5 sm:pb-2 select-none opacity-40 hover:opacity-90 transition-opacity shrink-0">
+        <div className="w-full text-center pb-1.5 select-none opacity-40 hover:opacity-90 transition-opacity shrink-0">
           <span className="text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-[0.2em] text-[#17351F]">
-            Scroll for details & live activity ↓
+            Scroll for details ↓
           </span>
         </div>
       </div>
 
-      {/* 5. FLOATING SELECTION PANEL */}
+      {/* 5. FLOATING SELECTION PANEL (FOR SCROLLED VIEWPORTS) */}
       <div className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
         <div className="pointer-events-auto">
           {selectedPlots.length > 0 && !isPurchaseModalOpen && !isPaymentModalOpen && config && (
@@ -748,90 +727,286 @@ export default function App() {
       {/* 6. BELOW-THE-GRID CONTENT SECTIONS */}
       <div className="w-full bg-white border-t-2 border-[#17351F] mt-6 z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 py-16 space-y-20">
-          
-          {/* Section 1: How It Works */}
-          <section>
-            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-8 pb-4 border-b border-[#C9D7B5]">
-              <div>
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#17351F]/60">
-                  // 01 The Process
-                </span>
-                <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#17351F] font-serif">
-                  How It Works
-                </h3>
-              </div>
-              <p className="text-xs text-[#17351F]/70 max-w-md">
-                Claiming a spot takes less than 30 seconds. No complicated setups, no crypto wallets required.
-              </p>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-[#FAFDF5] border border-[#C9D7B5] p-6 rounded-sm flex flex-col justify-between">
+          {/* Section: Live Board Statistics & Leaderboard (Rendered ONLY when real data exists) */}
+          {hasRealActivity && (
+            <section id="stats">
+              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-8 pb-4 border-b border-[#C9D7B5]">
                 <div>
-                  <div className="w-10 h-10 rounded-sm bg-[#17351F] text-[#C8E87A] flex items-center justify-center font-mono font-black text-sm mb-4">
-                    01
-                  </div>
-                  <h4 className="text-base font-black uppercase tracking-wider text-[#17351F] mb-2">
-                    Pick a Spot
-                  </h4>
-                  <p className="text-xs text-[#17351F]/80 leading-relaxed">
-                    Explore the 288-square digital board and select any available spot. Pick adjacent squares to build a larger presence.
-                  </p>
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#17351F]/60">
+                    // Live Intelligence
+                  </span>
+                  <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#17351F] font-serif">
+                    Market Statistics
+                  </h3>
                 </div>
-                <div className="mt-6 pt-4 border-t border-[#C9D7B5]/60 text-[10px] font-mono text-[#17351F]/60">
-                  Fixed $1.00 starting price
-                </div>
+                <p className="text-xs text-[#17351F]/70 max-w-md">
+                  Authoritative transaction ledger metrics and active billboard valuations.
+                </p>
               </div>
 
-              <div className="bg-[#FAFDF5] border border-[#C9D7B5] p-6 rounded-sm flex flex-col justify-between">
-                <div>
-                  <div className="w-10 h-10 rounded-sm bg-[#17351F] text-[#C8E87A] flex items-center justify-center font-mono font-black text-sm mb-4">
-                    02
-                  </div>
-                  <h4 className="text-base font-black uppercase tracking-wider text-[#17351F] mb-2">
-                    Make It Yours
-                  </h4>
-                  <p className="text-xs text-[#17351F]/80 leading-relaxed">
-                    Provide your website or project link. We automatically detect your site's visual identity. Uploading a custom logo is completely optional.
-                  </p>
+              {/* Metric Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8">
+                <div className="bg-[#FAFDF5] border border-[#C9D7B5] p-4 rounded-sm">
+                  <span className="text-[9px] font-mono font-bold text-[#17351F]/60 uppercase tracking-widest block">
+                    TOTAL PLACEMENTS
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-mono font-black text-[#17351F] mt-1 block">
+                    {claimedSpots} / {totalSpots}
+                  </span>
+                  <span className="text-[10px] text-[#17351F]/70 font-mono mt-0.5 block">
+                    {remainingSpots} available for $1
+                  </span>
                 </div>
-                <div className="mt-6 pt-4 border-t border-[#C9D7B5]/60 text-[10px] font-mono text-[#17351F]/60">
-                  Auto-detection & live preview
+
+                <div className="bg-[#FAFDF5] border border-[#C9D7B5] p-4 rounded-sm">
+                  <span className="text-[9px] font-mono font-bold text-[#17351F]/60 uppercase tracking-widest block">
+                    TRANSACTION VOLUME
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-mono font-black text-[#17351F] mt-1 block">
+                    {formatCurrency(boardStats?.totalVolume || 0)}
+                  </span>
+                  <span className="text-[10px] text-[#17351F]/70 font-mono mt-0.5 block">
+                    Processed via Dodo
+                  </span>
+                </div>
+
+                <div className="bg-[#FAFDF5] border border-[#C9D7B5] p-4 rounded-sm">
+                  <span className="text-[9px] font-mono font-bold text-[#17351F]/60 uppercase tracking-widest block">
+                    COMPETITIVE TAKEOVERS
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-mono font-black text-[#D97706] mt-1 block">
+                    {boardStats?.acquisitionsCount || 0}
+                  </span>
+                  <span className="text-[10px] text-[#17351F]/70 font-mono mt-0.5 block">
+                    Acquired at 2.5× valuation
+                  </span>
+                </div>
+
+                <div className="bg-[#FAFDF5] border border-[#C9D7B5] p-4 rounded-sm">
+                  <span className="text-[9px] font-mono font-bold text-[#17351F]/60 uppercase tracking-widest block">
+                    ACTIVE GUARANTEE
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-mono font-black text-emerald-800 mt-1 block">
+                    90 Days
+                  </span>
+                  <span className="text-[10px] text-[#17351F]/70 font-mono mt-0.5 block">
+                    Per confirmed claim
+                  </span>
                 </div>
               </div>
 
-              <div className="bg-[#FAFDF5] border border-[#C9D7B5] p-6 rounded-sm flex flex-col justify-between">
+              {/* Leaderboard Lists: Condition-based rendering without empty placeholders */}
+              {(hasValuableSpots || hasContestedSpots) && (
+                <div className={`grid grid-cols-1 ${hasValuableSpots && hasContestedSpots ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-2xl'} gap-6`}>
+                  {/* Most Valuable Spots (Only when real occupied spots exist) */}
+                  {hasValuableSpots && (
+                    <div className="bg-[#FAFDF5] border border-[#C9D7B5] p-5 rounded-sm">
+                      <div className="flex items-center justify-between pb-3 border-b border-[#C9D7B5] mb-3">
+                        <div className="flex items-center gap-1.5">
+                          <Award size={15} className="text-[#17351F]" />
+                          <h4 className="text-xs font-mono font-black uppercase tracking-wider text-[#17351F]">
+                            Most Valuable Spots
+                          </h4>
+                        </div>
+                        <span className="text-[9px] font-mono text-[#17351F]/60">Ranked by valuation</span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {boardStats!.mostValuableSpots.slice(0, 5).map((spot, idx) => (
+                          <div
+                            key={spot.id}
+                            onClick={() => {
+                              const p = plots.find((item) => item.id === spot.id);
+                              if (p) handlePlotClick(p);
+                            }}
+                            className="p-2 bg-white border border-[#C9D7B5] rounded-xs flex items-center justify-between hover:bg-[#F5F8EC] transition-colors cursor-pointer text-xs font-mono"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-[#17351F]/40 text-[10px]">#{idx + 1}</span>
+                              <span className="bg-[#17351F] text-[#C8E87A] px-1.5 py-0.5 rounded-xs font-black text-[10px]">
+                                {spot.id}
+                              </span>
+                              <span className="font-bold text-[#17351F] truncate max-w-[140px]">
+                                {spot.brandName || 'Claimed Spot'}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="font-black text-[#17351F] block">{formatCurrency(spot.price)}</span>
+                              <span className="text-[8px] text-[#D97706] block">
+                                Takeover: {formatCurrency(spot.takeoverPrice)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Most Contested Spots (Only when real takeovers exist) */}
+                  {hasContestedSpots && (
+                    <div className="bg-[#FAFDF5] border border-[#C9D7B5] p-5 rounded-sm">
+                      <div className="flex items-center justify-between pb-3 border-b border-[#C9D7B5] mb-3">
+                        <div className="flex items-center gap-1.5">
+                          <Flame size={15} className="text-[#D97706]" />
+                          <h4 className="text-xs font-mono font-black uppercase tracking-wider text-[#17351F]">
+                            Most Contested Real Estate
+                          </h4>
+                        </div>
+                        <span className="text-[9px] font-mono text-[#17351F]/60">Ranked by takeovers</span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {boardStats!.mostContestedSpots.slice(0, 5).map((spot, idx) => (
+                          <div
+                            key={spot.id}
+                            onClick={() => {
+                              const p = plots.find((item) => item.id === spot.id);
+                              if (p) handlePlotClick(p);
+                            }}
+                            className="p-2 bg-white border border-[#C9D7B5] rounded-xs flex items-center justify-between hover:bg-[#F5F8EC] transition-colors cursor-pointer text-xs font-mono"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-[#17351F]/40 text-[10px]">#{idx + 1}</span>
+                              <span className="bg-[#17351F] text-[#C8E87A] px-1.5 py-0.5 rounded-xs font-black text-[10px]">
+                                {spot.id}
+                              </span>
+                              <span className="font-bold text-[#17351F] truncate max-w-[140px]">
+                                {spot.brandName || 'Claimed Spot'}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="font-black text-[#D97706] block">
+                                {spot.takeoverCount} takeover{spot.takeoverCount === 1 ? '' : 's'}
+                              </span>
+                              <span className="text-[8px] text-[#17351F]/60 block">{formatCurrency(spot.price)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Section: Recently Claimed / Active Brands Showcase (Only when real brands exist) */}
+          {hasRecentBrands && (
+            <section id="discover">
+              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-6 pb-4 border-b border-[#C9D7B5]">
                 <div>
-                  <div className="w-10 h-10 rounded-sm bg-[#17351F] text-[#C8E87A] flex items-center justify-center font-mono font-black text-sm mb-4">
-                    03
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#17351F]/60">
+                    // Active Placements
+                  </span>
+                  <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#17351F] font-serif">
+                    Recently Claimed Brands
+                  </h3>
+                </div>
+                <p className="text-xs text-[#17351F]/70 max-w-md">
+                  Websites and creators currently staking their presence on TakeTheSpot.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {boardStats!.recentBrands.slice(0, 12).map((brand, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-[#FAFDF5] border border-[#C9D7B5] p-3 rounded-sm flex flex-col justify-between hover:border-[#17351F] transition-all"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      {brand.logo ? (
+                        <img
+                          src={brand.logo}
+                          alt={brand.brandName}
+                          className="w-7 h-7 object-contain rounded-xs bg-white border border-[#C9D7B5] p-0.5 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-7 h-7 rounded-xs bg-[#17351F] text-[#C8E87A] flex items-center justify-center font-mono font-bold text-[10px] shrink-0">
+                          {brand.brandName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className="text-xs font-bold text-[#17351F] truncate" title={brand.brandName}>
+                        {brand.brandName}
+                      </span>
+                    </div>
+
+                    <div className="text-[9px] font-mono text-[#17351F]/70 mb-2 truncate">
+                      Spots: {brand.spotIds.slice(0, 3).join(', ')}
+                      {brand.spotIds.length > 3 ? ` +${brand.spotIds.length - 3}` : ''}
+                    </div>
+
+                    {brand.websiteUrl ? (
+                      <a
+                        href={brand.websiteUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[9px] font-mono font-bold text-[#17351F] hover:text-[#2a5a35] inline-flex items-center gap-1 hover:underline"
+                      >
+                        <span>Visit Site</span>
+                        <ExternalLink size={9} />
+                      </a>
+                    ) : (
+                      <span className="text-[9px] font-mono text-[#17351F]/40">No link</span>
+                    )}
                   </div>
-                  <h4 className="text-base font-black uppercase tracking-wider text-[#17351F] mb-2">
-                    Own Your Spot
-                  </h4>
-                  <p className="text-xs text-[#17351F]/80 leading-relaxed">
-                    Your spot is immediately activated and displayed to every visitor. You receive an official certificate of ownership.
-                  </p>
-                </div>
-                <div className="mt-6 pt-4 border-t border-[#C9D7B5]/60 text-[10px] font-mono text-[#17351F]/60">
-                  90-day duration + takeover dynamic
-                </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Section: Founder's Note / Why This Exists */}
+          <section className="bg-[#FAFDF5] border-2 border-[#17351F] p-6 sm:p-10 rounded-sm">
+            <div className="max-w-3xl">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#17351F]/60">
+                // The Vision
+              </span>
+              <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#17351F] font-serif mt-1 mb-4">
+                Why TakeTheSpot Exists
+              </h3>
+              <div className="text-xs sm:text-sm text-[#17351F]/80 space-y-3 leading-relaxed font-serif">
+                <p>
+                  The modern internet has turned into infinite algorithmic feeds where content disappears within 48 hours.
+                  We missed the golden era of the web where internet artifacts had physical-style permanence and real scarcity.
+                </p>
+                <p>
+                  <strong>TakeTheSpot</strong> is a living 288-cell digital billboard. There are no algorithmic recommendations,
+                  no endless scrolling, and no shadowbans. When you claim a spot, you get a tangible coordinate on a global canvas
+                  viewed by creators, founders, hackers, and collectors.
+                </p>
+                <p>
+                  With guaranteed 90-day durations and dynamic 2.5× acquisition mechanics, the billboard stays competitive,
+                  fair, and constantly evolving.
+                </p>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-[#C9D7B5] flex items-center justify-between font-mono text-xs">
+                <span className="text-[#17351F] font-bold">Created by Niraj · @nirajxdev</span>
+                <a
+                  href="https://x.com/nirajxdev"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#17351F] hover:underline font-bold inline-flex items-center gap-1"
+                >
+                  Follow on X →
+                </a>
               </div>
             </div>
           </section>
 
-          {/* Section 2: What Would You Put Here? */}
+          {/* Section: Possibilities */}
           <section>
             <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-8 pb-4 border-b border-[#C9D7B5]">
               <div>
                 <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#17351F]/60">
-                  // 02 Possibilities
+                  // Possibilities
                 </span>
                 <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#17351F] font-serif">
                   What Would You Put Here?
                 </h3>
               </div>
               <p className="text-xs text-[#17351F]/70 max-w-md">
-                A permanent corner of the internet for you, your projects, or your brand.
+                A public corner of the internet for you, your projects, or your brand.
               </p>
             </div>
 
@@ -839,7 +1014,7 @@ export default function App() {
               {[
                 { icon: Globe, label: 'YOUR STARTUP', desc: 'Launch your product & drive curious adopters' },
                 { icon: Briefcase, label: 'YOUR PORTFOLIO', desc: 'Showcase your engineering, design, or writing' },
-                { icon: Laugh, label: 'YOUR MEME', desc: 'Immortalize internet culture permanently' },
+                { icon: Laugh, label: 'YOUR MEME', desc: 'Immortalize internet culture on the billboard' },
                 { icon: AtSign, label: 'YOUR USERNAME', desc: 'Stake your online handle on the board' },
                 { icon: Palette, label: 'YOUR ART', desc: 'Display pixel art or illustrations' },
                 { icon: Layers, label: 'YOUR SIDE PROJECT', desc: 'Share your open source tools & apps' },
@@ -873,83 +1048,12 @@ export default function App() {
             </div>
           </section>
 
-          {/* Section 3: Scarcity & Real Activity */}
-          <section className="bg-[#17351F] text-[#F5F8EC] rounded-sm p-6 sm:p-10 border border-[#17351F]">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-              <div>
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#C8E87A]">
-                  // 03 Real Scarcity
-                </span>
-                <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-white font-serif mt-1">
-                  Only 288 Spots Will Ever Exist.
-                </h3>
-                <p className="text-xs sm:text-sm text-[#F5F8EC]/80 mt-2 leading-relaxed">
-                  Unlike endless social feeds, TakeTheSpot is a scarce physical-style internet board. Every spot claimed permanently occupies space in the grid.
-                </p>
-
-                <div className="mt-6 grid grid-cols-3 gap-4 border-t border-white/15 pt-6 font-mono">
-                  <div>
-                    <span className="text-[10px] text-white/50 uppercase block">Total Spots</span>
-                    <span className="text-xl sm:text-2xl font-black text-white">{totalSpots}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-white/50 uppercase block">Claimed</span>
-                    <span className="text-xl sm:text-2xl font-black text-[#C8E87A]">{claimedSpots}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-white/50 uppercase block">Remaining</span>
-                    <span className="text-xl sm:text-2xl font-black text-white">{remainingSpots}</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleClaimClick}
-                  className="mt-8 bg-[#C8E87A] text-[#17351F] hover:bg-[#b5d36e] active:scale-95 text-xs font-black uppercase tracking-[0.16em] px-6 py-3.5 rounded-sm transition-all shadow-md inline-flex items-center gap-2 cursor-pointer"
-                >
-                  <span>Claim Your Spot for $1</span>
-                  <ArrowRight size={14} />
-                </button>
-              </div>
-
-              {/* Real Activity Box */}
-              <div className="bg-[#111511] border border-white/10 rounded-sm p-5">
-                <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-                  <span className="text-xs font-mono font-bold text-[#C8E87A] uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    Live Activity
-                  </span>
-                  <span className="text-[10px] font-mono text-white/40">Verified Ledger</span>
-                </div>
-
-                {recentTransactions.length > 0 ? (
-                  <div className="space-y-2.5">
-                    {recentTransactions.map((tx) => (
-                      <div key={tx.id} className="bg-white/5 border border-white/10 p-2.5 rounded-xs flex items-center justify-between text-xs font-mono">
-                        <div>
-                          <span className="text-[#C8E87A] font-bold">{tx.newOwner || 'Anonymous'}</span>
-                          <span className="text-white/60"> claimed </span>
-                          <span className="text-white font-bold bg-white/10 px-1.5 py-0.5 rounded-xs">{tx.plotId}</span>
-                        </div>
-                        <span className="text-white/70 font-bold">{formatCurrency(tx.transactionAmount)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-8 text-center text-white/50 text-xs font-mono">
-                    <p>Be the next to claim a spot on the board!</p>
-                    <p className="text-[10px] text-white/30 mt-1">Activity updates in real-time as spots are claimed.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* Section 4: FAQ */}
+          {/* Section: FAQ */}
           <section id="faq">
             <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-8 pb-4 border-b border-[#C9D7B5]">
               <div>
                 <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#17351F]/60">
-                  // 04 Questions & Answers
+                  // Questions & Answers
                 </span>
                 <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#17351F] font-serif">
                   Frequently Asked Questions
@@ -968,7 +1072,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
-                      className="w-full px-5 py-4 text-left flex items-center justify-between gap-4 font-bold text-xs sm:text-sm text-[#17351F] hover:bg-white transition-colors"
+                      className="w-full px-5 py-4 text-left flex items-center justify-between gap-4 font-bold text-xs sm:text-sm text-[#17351F] hover:bg-white transition-colors cursor-pointer"
                     >
                       <span>{faq.q}</span>
                       <ChevronDown
@@ -1011,7 +1115,7 @@ export default function App() {
               <span>@nirajxdev</span>
             </a>
             <span className="text-white/30 hidden sm:inline">|</span>
-            <span className="text-white/60 text-[10px] hidden sm:inline">© {new Date().getFullYear()} All spots permanent</span>
+            <span className="text-white/60 text-[10px] hidden sm:inline">90-Day Guaranteed Placements</span>
           </div>
 
           <div className="flex items-center gap-4 text-[10px] uppercase font-bold tracking-wider">
@@ -1019,7 +1123,7 @@ export default function App() {
               onClick={() => setIsRulesModalOpen(true)}
               className="hover:text-[#C8E87A] transition-colors cursor-pointer"
             >
-              How It Works
+              Rules
             </button>
             <button
               type="button"
@@ -1028,7 +1132,7 @@ export default function App() {
             >
               Admin
             </button>
-            <span className="text-[#C8E87A]">{remainingSpots} SPOTS LEFT</span>
+            <span className="text-[#C8E87A]">{remainingSpots} SPOTS AVAILABLE</span>
           </div>
         </div>
       </footer>
@@ -1064,6 +1168,17 @@ export default function App() {
 
       {/* Modals */}
       <Suspense fallback={null}>
+        {manageToken && (
+          <ManageModal
+            token={manageToken}
+            onClose={() => setManageToken(null)}
+            onUpdated={() => {
+              loadData();
+              fetchStats();
+            }}
+          />
+        )}
+
         {isAdminPanelOpen && (
           <AdminPanel onClose={() => setIsAdminPanelOpen(false)} />
         )}
@@ -1107,10 +1222,12 @@ export default function App() {
           <SuccessModal
             plots={selectedPlots.map((id) => plots.find((p) => p.id === id)).filter(Boolean) as Plot[]}
             brandName={purchaseDetails.brandName}
+            manageToken={successManageToken}
             onClose={() => {
               setIsSuccessModalOpen(false);
               setSelectedPlots([]);
               setPurchaseDetails(null);
+              setSuccessManageToken(undefined);
             }}
           />
         )}
