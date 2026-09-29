@@ -120,6 +120,25 @@ function neonConnectionString(url: string) {
   }
 }
 
+// Neon Free meters CU-hours and egress, not query count. The board is a
+// single ~60 KB JSONB row, so an 8s poll per visitor re-pulls it constantly
+// and keeps the compute awake (it only scales to zero after 5 min idle).
+// A short per-instance cache collapses concurrent reads into one round trip.
+const CACHE_TTL_MS = 5_000;
+
+function isMissingTable(error: unknown) {
+  const code = (error as { code?: string } | null)?.code;
+  if (code === "42P01") return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return /does not exist/i.test(message) && /app_state|relation/i.test(message);
+}
+
+function clone<T>(value: T): T {
+  return value === null || value === undefined
+    ? value
+    : (structuredClone(value) as T);
+}
+
 async function createNeonStore(url: string): Promise<AppStore> {
   // Dynamic import: Vercel often compiles /api as CJS, and
   // @neondatabase/serverless is ESM-only. A static import becomes
@@ -128,8 +147,10 @@ async function createNeonStore(url: string): Promise<AppStore> {
   const sql = loaded.neon(neonConnectionString(url));
   let tableReady = false;
 
-  async function ensureTable() {
-    if (tableReady) return;
+  // The table is created lazily on the first read that reports it missing,
+  // instead of on every cold start. DDL cannot be served by a read replica,
+  // so running it unconditionally woke the primary compute on each cold boot.
+  async function createTable() {
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -150,23 +171,68 @@ async function createNeonStore(url: string): Promise<AppStore> {
     throw lastError;
   }
 
+  async function selectValue(key: string): Promise<unknown> {
+    try {
+      const rows = await sql`SELECT value FROM app_state WHERE key = ${key}`;
+      if (!rows.length) return null;
+      return rows[0].value;
+    } catch (error) {
+      if (!isMissingTable(error) || tableReady) throw error;
+      await createTable();
+      const rows = await sql`SELECT value FROM app_state WHERE key = ${key}`;
+      if (!rows.length) return null;
+      return rows[0].value;
+    }
+  }
+
+  // Canonical cached values, plus in-flight dedupe so a burst of concurrent
+  // requests issues one query rather than one per request.
+  const cache = new Map<string, { value: unknown; expires: number }>();
+  const inflight = new Map<string, Promise<unknown>>();
+
   async function getJson<T>(key: string): Promise<T | null> {
-    await ensureTable();
-    const rows = await sql`SELECT value FROM app_state WHERE key = ${key}`;
-    if (!rows.length) return null;
-    return rows[0].value as T;
+    const hit = cache.get(key);
+    if (hit && hit.expires > Date.now()) return clone(hit.value) as T;
+
+    let pending = inflight.get(key);
+    if (!pending) {
+      pending = selectValue(key).then((value) => {
+        cache.set(key, { value, expires: Date.now() + CACHE_TTL_MS });
+        return value;
+      });
+      inflight.set(key, pending);
+      // Clear only our own entry so a newer in-flight read is not discarded.
+      pending.catch(() => {}).finally(() => {
+        if (inflight.get(key) === pending) inflight.delete(key);
+      });
+    }
+    return clone((await pending) as T);
   }
 
   async function setJson(key: string, value: unknown) {
-    await ensureTable();
     const payload = JSON.stringify(value);
-    await sql`
-      INSERT INTO app_state (key, value, updated_at)
-      VALUES (${key}, ${payload}::jsonb, NOW())
-      ON CONFLICT (key) DO UPDATE SET
-        value = EXCLUDED.value,
-        updated_at = NOW()
-    `;
+    try {
+      await sql`
+        INSERT INTO app_state (key, value, updated_at)
+        VALUES (${key}, ${payload}::jsonb, NOW())
+        ON CONFLICT (key) DO UPDATE SET
+          value = EXCLUDED.value,
+          updated_at = NOW()
+      `;
+    } catch (error) {
+      if (!isMissingTable(error) || tableReady) throw error;
+      await createTable();
+      await sql`
+        INSERT INTO app_state (key, value, updated_at)
+        VALUES (${key}, ${payload}::jsonb, NOW())
+        ON CONFLICT (key) DO UPDATE SET
+          value = EXCLUDED.value,
+          updated_at = NOW()
+      `;
+    }
+    // Write through so a read immediately after a purchase is never stale.
+    // Cloned because callers keep mutating the object they handed us.
+    cache.set(key, { value: clone(value), expires: Date.now() + CACHE_TTL_MS });
   }
 
   return {

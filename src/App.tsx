@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, lazy, Suspense, useRef } from 'react';
-import { Plot, MarketConfig, Transaction } from './types.ts';
+import { Plot, MarketConfig } from './types.ts';
 import { getUserId, hydratePlots, formatCurrency } from './utils.ts';
 import { playSuccessChime } from './audio.ts';
 import Grid from './components/Grid.tsx';
@@ -37,6 +37,7 @@ const RulesModal = lazy(() =>
 
 const PENDING_CHECKOUT_KEY = 'tts_dodo_checkout';
 const ONBOARDING_DISMISSED_KEY = 'tts_onboarding_dismissed';
+const POLL_INTERVAL_MS = 30_000;
 
 type PendingClientCheckout = {
   checkoutId: string;
@@ -73,7 +74,6 @@ export default function App() {
   const [isSoundEnabled, setIsSoundEnabled] = useState(() => localStorage.getItem('sound_enabled') === 'true');
   const [purchaseDetails, setPurchaseDetails] = useState<{ brandName: string; logo: string; websiteUrl: string } | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(() => localStorage.getItem(ONBOARDING_DISMISSED_KEY) !== 'true');
-  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [boardStats, setBoardStats] = useState<BoardStats | null>(null);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
@@ -136,20 +136,6 @@ export default function App() {
     }
   }, []);
 
-  const fetchTransactions = useCallback(async () => {
-    try {
-      const res = await fetch('/api/transactions/recent');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setRecentTransactions(data);
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
-
   const fetchStats = useCallback(async () => {
     try {
       const res = await fetch('/api/stats');
@@ -191,19 +177,45 @@ export default function App() {
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | undefined;
-    loadData().finally(() => {
-      fetchTransactions();
+
+    const poll = () => {
+      if (document.hidden) return;
+      loadData();
       fetchStats();
-      interval = setInterval(() => {
-        loadData();
-        fetchTransactions();
-        fetchStats();
-      }, 8000);
-    });
-    return () => {
-      if (interval) clearInterval(interval);
     };
-  }, [loadData, fetchTransactions, fetchStats]);
+
+    const stop = () => {
+      if (interval) clearInterval(interval);
+      interval = undefined;
+    };
+
+    const start = () => {
+      stop();
+      interval = setInterval(poll, POLL_INTERVAL_MS);
+    };
+
+    // A hidden tab is the single biggest source of database load, and it is
+    // also the cheapest thing to stop: nobody is looking at a stale board.
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        poll();
+        start();
+      }
+    };
+
+    loadData().finally(() => {
+      fetchStats();
+      if (!document.hidden) start();
+    });
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadData, fetchStats]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

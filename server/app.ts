@@ -30,9 +30,11 @@ function getExpress() {
 }
 
 function setBoardCache(res: Response) {
+  // s-maxage must exceed the client poll interval, otherwise the CDN entry
+  // expires before the next poll and every request reaches the database.
   res.setHeader(
     "Cache-Control",
-    "public, max-age=0, s-maxage=5, stale-while-revalidate=30",
+    "public, max-age=0, s-maxage=30, stale-while-revalidate=60",
   );
 }
 
